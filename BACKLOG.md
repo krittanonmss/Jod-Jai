@@ -32,3 +32,19 @@ Ideas to improve:
 - Prefer structured fields from known slip layout positions where possible, not only full-text regex.
 - Keep asking for user confirmation before saving because OCR will never be perfect.
 - Consider an optional OCR/vision provider later only if local OCR cannot reach acceptable accuracy.
+
+## Privacy: user data deletion
+
+Current gap:
+
+- There is no LINE command for a user to clear their own history yet.
+- Data can be deleted manually in Supabase, but that is not friendly or safe enough for regular use.
+
+Ideas to improve:
+
+- Add a `ล้างประวัติ` command in LINE.
+- Require an explicit confirmation step, such as a confirmation button or `ยืนยันล้างประวัติ`, before deleting anything.
+- Delete only the requesting user's data by default: drafts/confirmed records, queued events, stored responses, and mutation replay records.
+- Keep owner pairing / authorization unless the user explicitly asks to reset the account owner.
+- Reply with a clear summary after deletion, including what was deleted and what was kept.
+- Add tests that prove one user's delete command cannot delete another user's records.
