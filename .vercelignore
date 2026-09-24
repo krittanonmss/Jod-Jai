@@ -1,0 +1,8 @@
+.env*
+.git
+.agents
+.codex
+example-slip
+node_modules
+.next
+.deploy

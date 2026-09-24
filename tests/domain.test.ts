@@ -1,0 +1,55 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {createHmac} from 'node:crypto';
+import {satang,thaiDate,normalizeSlip,parseAnswer,missingField,Draft} from '../lib/domain';
+import {parseSlipText,parseDateLine} from '../lib/slip-parser';
+import {validSignature} from '../lib/line';
+import {review} from '../lib/messages';
+import {allowedUser} from '../lib/config';
+test('money uses integer satang, rejects negatives and ambiguous decimals',()=>{
+ assert.equal(satang('2,000.05'),200005);assert.equal(satang('0.29'),29);
+ assert.equal(satang('-33'),null);assert.equal(satang('96.001'),null);assert.equal(satang('abc'),null);
+});
+test('Buddhist year, Thai timezone, invalid calendar dates',()=>{
+ assert.equal(thaiDate('2569-09-23','17:22'),'2026-09-23T10:22:00.000Z');
+ assert.equal(thaiDate('2026-02-30','12:00'),null);assert.equal(thaiDate('2026-09-23','25:00'),null);
+});
+test('date parsing never mistakes a decimal fee for time',()=>{
+ assert.deepEqual(parseDateLine('ค่าธรรมเนียม 0.00 บาท'),{date:null,time:null});
+ assert.deepEqual(parseDateLine('23 ก.ย. 2569,17:22'),{date:'2569-09-23',time:'17:22'});
+ assert.deepEqual(parseDateLine('22 กูย. 2569 19:43 น.'),{date:'2569-09-22',time:'19:43'});
+});
+test('Paotang records net paid and preserves subsidy separately',()=>{
+ const s=parseSlipText('เป๋าตัง\n22 ก.ย. 2569 19:43\nค่าสินค้า/บริการ\n55 บาท\nสิทธิไทยช่วยไทยพลัส\n-33 บาท\nจำนวนเงินที่ชำระ\n22 บาท\nหมายเหตุ: ค่าอาหารเย็น');
+ const d=normalizeSlip(s);assert.equal(d.amount_satang,2200);assert.equal(d.gross_satang,5500);assert.equal(d.subsidy_satang,3300);
+ assert.equal(d.description,'ค่าอาหารเย็น');assert.equal(d.category,'อาหาร');
+});
+test('does not infer purpose from merchant or invent an unreadable amount',()=>{
+ const d=normalizeSlip(parseSlipText('Bangkok Bank\nCOUNTER SERVICE\nเลขที่อ้างอิง 2026092317223024002815108'));
+ assert.equal(d.description,null);assert.equal(d.amount_satang,null);
+});
+test('LINE signature checks exact raw body and rejects missing/altered signatures',()=>{
+ const raw='{"events":[]}';const signature=createHmac('sha256','secret').update(raw).digest('base64');
+ assert.ok(validSignature(raw,signature,'secret'));assert.equal(validSignature(raw+' ',signature,'secret'),false);assert.equal(validSignature(raw,'','secret'),false);
+});
+test('no configured LINE owner denies access',()=>{
+ const original=process.env.LINE_ALLOWED_USER_IDS;process.env.LINE_ALLOWED_USER_IDS='';assert.equal(allowedUser('U1'),false);
+ process.env.LINE_ALLOWED_USER_IDS='U1,U2';assert.ok(allowedUser('U1'));assert.equal(allowedUser('U3'),false);
+ if(original===undefined)delete process.env.LINE_ALLOWED_USER_IDS;else process.env.LINE_ALLOWED_USER_IDS=original;
+});
+const draft={id:'07e061ac-f717-4297-a838-ffab91e24e33',short_code:'ABCDE12345',version:4,amount_satang:9600,occurred_at:'2026-09-23T10:22:00Z',description:'ค่าอาหาร',category:'อาหาร',recipient:'ร้านค้า',edit_field:null} as Draft;
+test('complete draft exposes explicit versioned confirmation; incomplete draft asks first',()=>{
+ const serialized=JSON.stringify(review(draft));assert.match(serialized,/ยืนยันและบันทึก/);assert.match(serialized,/v=4/);
+ assert.equal(missingField({...draft,description:null}),'description');assert.equal(review({...draft,description:null}).type,'text');
+ assert.equal(review({...draft,edit_field:'amount'}).type,'text');
+});
+test('editing preserves validation and allows categorization',()=>{
+ assert.deepEqual(parseAnswer('amount','22.50 บาท'),{amount_satang:2250});
+ assert.deepEqual(parseAnswer('description','ค่าข้าว'),{description:'ค่าข้าว',category:'อาหาร'});
+ assert.throws(()=>parseAnswer('amount','0'));assert.throws(()=>parseAnswer('date','yesterday'));assert.throws(()=>parseAnswer('category','wrong'));
+});
+import {pairingMatches} from '../lib/access';
+test('owner pairing requires an exact high-entropy code and rejects empty configuration',()=>{
+ const code='0123456789abcdef01234567';assert.ok(pairingMatches('เชื่อมต่อ '+code,code));
+ assert.equal(pairingMatches('เชื่อมต่อ other',code),false);assert.equal(pairingMatches('เชื่อมต่อ ',''),false);assert.equal(pairingMatches('เชื่อมต่อ 123','123'),false);
+});

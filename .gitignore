@@ -1,0 +1,14 @@
+# Local credentials and environment files
+.env
+.env.*
+!.env.example
+node_modules/
+.next/
+.vercel/
+*.tsbuildinfo
+coverage/
+example-slip/
+.deploy/
+
+.agents/
+.codex/
