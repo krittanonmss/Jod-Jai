@@ -1,10 +1,13 @@
 import { createWorker, OEM, PSM } from 'tesseract.js';
 import sharp from 'sharp';
 import { mkdir, copyFile } from 'node:fs/promises';
-import { createRequire } from 'node:module';
 import path from 'node:path';
 import { parseSlipText, parseDateLine } from './slip-parser';
-const localRequire=createRequire(path.join(process.cwd(),'package.json'));
+
+// Vercel traces these packages into the function bundle under node_modules.
+// Avoid createRequire().resolve(): webpack can fold the createRequire call away
+// while leaving the later `.resolve()` access in a production server bundle.
+const packagePath=(...parts:string[])=>path.join(process.cwd(),'node_modules',...parts);
 type Rect=readonly [number,number,number,number];
 const regions:Record<string,{date:Rect,amount:Rect,recipient:Rect}>={
  paotang:{date:[.10,.293,.78,.035],amount:[.73,.673,.20,.035],recipient:[.21,.46,.49,.036]},
@@ -15,10 +18,10 @@ const regions:Record<string,{date:Rect,amount:Rect,recipient:Rect}>={
 export async function recognizeSlip(image:Buffer) {
  const langPath='/tmp/jod-jai-ocr-languages';
  await mkdir(langPath,{recursive:true});
- await Promise.all(['tha','eng'].map(code=>copyFile(path.join(path.dirname(localRequire.resolve(`@tesseract.js-data/${code}/package.json`)),'4.0.0_best_int',`${code}.traineddata.gz`),path.join(langPath,`${code}.traineddata.gz`))));
+ await Promise.all(['tha','eng'].map(code=>copyFile(packagePath('@tesseract.js-data',code,'4.0.0_best_int',`${code}.traineddata.gz`),path.join(langPath,`${code}.traineddata.gz`))));
  const worker=await createWorker('eng+tha',OEM.LSTM_ONLY,{
-  langPath,workerPath:localRequire.resolve('tesseract.js/src/worker-script/node/index.js'),
-  corePath:path.dirname(localRequire.resolve('tesseract.js-core/package.json')),
+  langPath,workerPath:packagePath('tesseract.js','src','worker-script','node','index.js'),
+  corePath:packagePath('tesseract.js-core'),
   cacheMethod:'none',logger:()=>{},errorHandler:()=>{},
  });
  try {
