@@ -2,6 +2,42 @@
 
 This backlog is ordered by practical priority. Start from P0 unless the user explicitly asks for a different task.
 
+## Current Working State
+
+- There are local, uncommitted changes for P0 summary Flex Messages in `lib/messages.ts`, `lib/bot.ts`, and `tests/domain.test.ts`.
+- The local P0 implementation replaces plain text summaries with Flex cards for `ดูรายรับรายจ่าย`, `สรุปวันนี้`, and `สรุปเดือนนี้`.
+- Local checks already passed once: `npm run typecheck`, `npm test`, and `npm run build`.
+- A Vercel deployment was started, but the last status check saw it still `BUILDING`; production smoke test did not complete yet.
+- Do not assume P0 is finished next session. First re-check deployment status, smoke test production, inspect the local diff, then decide whether to commit/push or adjust.
+
+Next restart checklist:
+
+1. Run `git status --short` and inspect the uncommitted P0 diff.
+2. Run `npm run typecheck`, `npm test`, and `npm run build` again if any code changed or if the session context is uncertain.
+3. Check Vercel deployment status and run production smoke test only when ready.
+4. Send a real LINE command check for `ดูรายรับรายจ่าย`, `สรุปวันนี้`, and `สรุปเดือนนี้` if possible.
+5. Commit/push only after production is verified, unless the user explicitly asks for local-only work.
+
+## Done
+
+- Project scaffold, LINE webhook, Supabase schema, Vercel deploy, durable queue, owner pairing, OCR pipeline, duplicate slip protection, and Rich Menu are implemented.
+- README has been updated with the public site link, privacy notes, rough costs, and sharing guidance.
+- Rich Menu is live as the default LINE menu.
+- `BACKLOG.md` is now the source of truth for follow-up work and priority.
+
+## Needs Re-Check / Polish
+
+- LINE Official Account auto-response may still need to be disabled manually in LINE OA Manager if it appears again.
+- P0 Flex Message visual quality still needs a real LINE screenshot check; passing JSON/tests is not enough to judge layout.
+- Help text and pending draft text still look dense and are covered by P1.
+- OCR Thai accuracy remains imperfect and is intentionally P2 because confirmation prevents silent bad saves.
+
+## Things To Add Later
+
+- Real web dashboard is intentionally postponed. Keep current scope to better LINE cards first.
+- Export should ship before automatic retention is enabled.
+- System status/quota visibility should ship before broad friend-sharing.
+
 ## P0: Make LINE Summaries Readable
 
 Why now:
