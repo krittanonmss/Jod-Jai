@@ -1,6 +1,6 @@
 import {createHash} from 'node:crypto';
 import {db,assertDb} from './db';
-import {Draft,normalizeSlip,missingField,parseAnswer,money} from './domain';
+import {Draft,normalizeSlip,missingField,parseAnswer,money,displayDate} from './domain';
 import {getImage,LineEvent,Message} from './line';
 import {recognizeSlip} from './ocr';
 import {slipQrHash} from './qr';
@@ -35,6 +35,37 @@ async function totals(user:string,monthly:boolean):Promise<Message[]>{
  assertDb(error);let total=0,count=0;
  for(const row of data||[]){total+=Number(row.total_satang);count+=Number(row.entries);}
  return [text(`รายจ่าย${monthly?'เดือนนี้':'วันนี้'} (เฉพาะรายการที่ยืนยัน)\n${money(total)} บาท • ${count} รายการ\n`+(data||[]).map((row:{category:string,total_satang:number})=>`${row.category}: ${money(Number(row.total_satang))} บาท`).join('\n'))];
+}
+async function overview(user:string):Promise<Message[]> {
+ const confirmed=await db().from('jod_drafts').select('*').eq('user_id',user).eq('status','confirmed').order('confirmed_at',{ascending:false}).limit(8);
+ assertDb(confirmed.error);
+ const rows=confirmed.data as Draft[];
+ const drafts=await pending(user);
+ const recent=rows.length?rows.map(d=>`#${d.short_code} ${money(d.amount_satang!)} บาท • ${d.description || d.recipient || 'ไม่ระบุ'} • ${d.occurred_at?displayDate(d.occurred_at):'ไม่ระบุวันที่'}`).join('\n'):'ยังไม่มีรายการที่ยืนยันแล้ว';
+ return [text(`รายรับ/รายจ่าย\nรายรับ: ยังไม่ได้เปิดใช้\nรายจ่ายล่าสุด: ${rows.length} รายการ\nรายการรอยืนยัน: ${drafts.length} รายการ\n\n${recent}`)];
+}
+function thaiNowIso():string {
+ const now = new Date();
+ const thai = new Date(now.getTime()+7*3600000);
+ return `${thai.toISOString().slice(0,10)}T${thai.toISOString().slice(11,19)}+07:00`;
+}
+async function startManualExpense(event:LineEvent, detail=''):Promise<Message[]> {
+ const user=event.source.userId!;
+ const base={
+  user_id:user,message_id:`manual:${event.webhookEventId}`,
+  image_hash:createHash('sha256').update(`manual:${user}:${event.webhookEventId}`).digest('hex'),
+  provider:'manual',occurred_at:thaiNowIso(),category:'อื่น ๆ',edit_field:'amount' as string|null,
+ };
+ let values:Record<string,unknown>={};
+ const match=detail.match(/^([0-9][0-9,]*(?:\.\d{1,2})?)(?:\s*(?:บาท)?\s+(.+))?$/);
+ if(match){
+  values=parseAnswer('amount',match[1]);
+  if(match[2])values={...values,...parseAnswer('description',match[2]),edit_field:null};
+  else values={...values,edit_field:'description'};
+ }
+ const saved=await db().from('jod_drafts').insert({...base,...values}).select('*').single();
+ if(saved.error?.code==='23505')return [text('รายการนี้ถูกสร้างไว้แล้วครับ พิมพ์ รายการค้าง เพื่อดูรายการเดิม')];
+ assertDb(saved.error);return [text('เริ่มเพิ่มรายจ่ายเองแล้วครับ'),review(saved.data as Draft)];
 }
 export async function processEvent(event:LineEvent):Promise<Message[]>{
  const user=event.source.userId!;
@@ -78,6 +109,9 @@ export async function processEvent(event:LineEvent):Promise<Message[]>{
  if(event.type==='message' && event.message?.type==='text'){
   const input=event.message.text?.trim()||'';
   if(['ช่วยเหลือ','help','เริ่ม'].includes(input))return [text(help)];
+  if(input==='ส่งสลิป')return [text('ส่งรูปสลิปเข้ามาในแชทนี้ได้เลยครับ ผมจะอ่านข้อมูลจากภาพ แล้วให้ตรวจสอบก่อนบันทึก')];
+  if(input==='เพิ่มรายการ'||input.startsWith('เพิ่มรายการ '))return startManualExpense(event,input.replace(/^เพิ่มรายการ\s*/,'').trim());
+  if(['ดูรายรับรายจ่าย','ดูรายการ','รายรับรายจ่าย'].includes(input))return overview(user);
   if(input==='สรุปวันนี้')return totals(user,false);
   if(input==='สรุปเดือนนี้')return totals(user,true);
   const rows=await pending(user);

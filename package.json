@@ -11,7 +11,9 @@
     "setup:check": "node scripts/manage.mjs check",
     "db:migrate": "node scripts/manage.mjs migrate",
     "deploy": "node scripts/manage.mjs deploy",
-    "test:db": "node scripts/manage.mjs dbtest"
+    "test:db": "node scripts/manage.mjs dbtest",
+    "richmenu:build": "node scripts/rich-menu.mjs build",
+    "richmenu:apply": "node scripts/rich-menu.mjs apply"
   },
   "engines": {
     "node": ">=20.19.0"
