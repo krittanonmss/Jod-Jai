@@ -43,6 +43,7 @@ Scope:
 - When there is exactly one pending draft, let the user answer directly without a `#<short_code>` prefix.
 - Add cleaner postback buttons for missing fields such as amount, description, category, confirm, and cancel.
 - Add a `รายการล่าสุด` / `แก้รายการล่าสุด` style flow so users do not need to remember codes.
+- Add edit/delete flows for already confirmed records, especially `แก้รายการล่าสุด` and `ลบรายการล่าสุด`, with confirmation before destructive changes.
 - Shorten dense help/error messages and keep examples concrete.
 
 Acceptance criteria:
@@ -50,6 +51,7 @@ Acceptance criteria:
 - A normal single-slip flow can finish with little or no manual code typing.
 - Multi-slip ambiguity still has a clear path.
 - Old `#<short_code>` commands continue to work as a fallback.
+- Confirmed records can be corrected or deleted without direct database access.
 
 ## P1: Add User Data Deletion Command
 
@@ -72,12 +74,35 @@ Acceptance criteria:
 - Deletion is idempotent and safe to retry.
 - Accidental one-message deletion is not possible.
 
+## P1: Export User Data
+
+Why next:
+
+- Retention will eventually delete old records, so users need a way to keep their own copy first.
+- Export also makes the system more trustworthy because data is not trapped in the bot.
+
+Scope:
+
+- Add a `ส่งออกข้อมูล` command.
+- Export at least confirmed records from the latest 6 months as CSV.
+- Include practical columns: occurred date, amount, category, description, recipient, provider, reference, created/confirmed time.
+- Consider exporting all available history before automatic retention is enabled.
+- Keep the export private to the requesting LINE user.
+
+Acceptance criteria:
+
+- A user can request and receive their own expense data without admin access.
+- Export contains enough fields to open in spreadsheet software.
+- Users cannot export another user's records.
+- Export is available before automatic retention is enabled.
+
 ## P1: Automatic 6-Month Data Retention
 
 Why next:
 
 - Old records currently stay in the database forever unless deleted manually.
 - A personal expense tracker usually only needs recent history, and retention helps keep Supabase usage small.
+- Export should exist before this is enabled so users can keep old records if they want.
 
 Scope:
 
@@ -115,6 +140,46 @@ Acceptance criteria:
 - Existing four supported slip formats keep passing.
 - Any OCR/vision provider remains optional and does not replace confirmation before saving.
 
+## P2: Remember Merchant and Category Patterns
+
+Why later:
+
+- Many expenses repeat at the same merchants or with similar notes.
+- The bot can become easier to use without AI by learning simple user-specific patterns.
+
+Scope:
+
+- Infer category and possibly description from the user's own confirmed history.
+- Prefer exact or normalized merchant/recipient matches before fuzzy matching.
+- Keep learned suggestions editable and always confirm before saving.
+- Avoid global learning across users; patterns should be per LINE user ID.
+
+Acceptance criteria:
+
+- Repeated merchants get better category suggestions over time.
+- Suggestions never overwrite explicit user input.
+- One user's patterns never affect another user.
+
+## P2: Owner System Status and Quota Checks
+
+Why later:
+
+- The bot depends on LINE, Vercel, Supabase, OCR, and the durable queue.
+- If it is shared with friends, the owner needs a simple way to see whether the system is healthy.
+
+Scope:
+
+- Add an owner-only `สถานะระบบ` command.
+- Show recent dead jobs, pending queue count, last cleanup time, and database usage where available.
+- Add checks for OCR failures and LINE push errors.
+- Consider LINE message quota checks if the API/account exposes enough information.
+
+Acceptance criteria:
+
+- Owner can inspect health from LINE without opening Supabase/Vercel dashboards.
+- Non-owners cannot view system or quota details.
+- Health output is short enough to read in LINE.
+
 ## P3: Sharing With Friends
 
 Why later:
@@ -128,6 +193,7 @@ Scope:
 - Add user list and revoke commands.
 - Keep records separated by LINE user ID.
 - Add quota/rate-limit safeguards before public use.
+- Require enough system status/quota visibility before inviting many people.
 
 Acceptance criteria:
 
