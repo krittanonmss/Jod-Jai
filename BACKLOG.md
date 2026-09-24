@@ -17,6 +17,29 @@ Ideas to improve:
 - Add a `รายการล่าสุด` / `แก้รายการล่าสุด` style flow so users do not need to remember codes.
 - Reduce wording in error/help messages and keep examples concrete.
 
+## UX: make overview and summaries easier to read
+
+Current pain points:
+
+- `ดูรายรับรายจ่าย` currently replies as plain text, which is hard to scan in LINE.
+- `สรุปวันนี้` and `สรุปเดือนนี้` show totals, but the structure is too flat and not visual enough.
+- Users should understand total spend, number of records, top categories, and recent records at a glance.
+
+Ideas to improve:
+
+- Use LINE Flex Messages instead of plain text for `ดูรายรับรายจ่าย`, `สรุปวันนี้`, and `สรุปเดือนนี้`.
+- Show a compact dashboard card: total expense, record count, pending count, and last updated time.
+- For summaries, group rows by category with aligned amounts and percentages where useful.
+- For recent records, show a small list with date, category, description, and amount; keep each row short.
+- Add quick actions under the summary, such as `เพิ่มรายการ`, `รายการค้าง`, and `สรุปเดือนนี้`.
+- Consider a simple web dashboard later for richer tables/charts, while LINE remains the quick daily interface.
+
+Possible first version:
+
+- `ดูรายรับรายจ่าย`: Flex card with 3 sections: month total, pending drafts, latest 5 confirmed expenses.
+- `สรุปวันนี้`: Flex card with today's total, category rows, and latest 3 records.
+- `สรุปเดือนนี้`: Flex card with monthly total, category ranking, average per day, and latest 5 records.
+
 ## OCR: improve Thai text accuracy
 
 Current pain points:
@@ -48,3 +71,19 @@ Ideas to improve:
 - Keep owner pairing / authorization unless the user explicitly asks to reset the account owner.
 - Reply with a clear summary after deletion, including what was deleted and what was kept.
 - Add tests that prove one user's delete command cannot delete another user's records.
+
+## Privacy: automatic data retention
+
+Current gap:
+
+- Old records stay in the database forever unless deleted manually.
+- This is unnecessary for a personal expense tracker if the user only needs recent history.
+
+Ideas to improve:
+
+- Add an automatic retention job that deletes user history older than 6 months.
+- Apply retention to confirmed/cancelled/draft records, completed event logs, and mutation replay records.
+- Keep owner pairing / authorization data so the account remains usable after old records are removed.
+- Make the retention window configurable with an environment variable, defaulting to 6 months.
+- Run the cleanup through Supabase cron or the existing worker pattern, and make it idempotent.
+- Consider warning/export options before enabling this for multi-user use.
