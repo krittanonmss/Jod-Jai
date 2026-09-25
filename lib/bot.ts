@@ -11,10 +11,9 @@ type Change={code:string;draft?:Draft};
 function changeResponse(result:Change):Message[]{
   if(result.code==='not_found')return [text('ไม่พบรายการของคุณครับ')];
   const d=result.draft!;
-  if(['saved','confirmed'].includes(result.code))return [text(`บันทึกแล้ว ✅\n${d.description}\n${money(d.amount_satang!)} บาท • ${d.category}`)];
+  if(['saved','confirmed','updated'].includes(result.code))return [text(`บันทึกแล้ว ✅\n${d.description||d.recipient||'ไม่ระบุ'}\n${money(d.amount_satang!)} บาท • ${d.category}`)];
   if(result.code==='cancelled')return [text('ยกเลิกรายการแล้ว ไม่นับในยอดรายจ่ายครับ')];
   if(result.code==='deleted')return [text(`ลบรายการ ${d.description||'ล่าสุด'} แล้วครับ`)];
-  if(result.code==='reopened')return [text('เปิดรายการล่าสุดให้แก้ไขแล้วครับ'),editMenu(d)];
   if(result.code==='stale')return [text('⚠️ ปุ่มนี้เก่าแล้ว (เวอร์ชันเปลี่ยนไป) กรุณาเปิด “รายการค้าง” หรือ “รายการล่าสุด” ใหม่เพื่อดูปุ่มล่าสุด'),review(d)];
   return [...(result.code==='stale'?[text('ข้อมูลมีการแก้ไขแล้ว กรุณาตรวจสรุปล่าสุดก่อนยืนยันครับ')]:[]),review(d)];
 }
@@ -22,8 +21,12 @@ async function change(event:LineEvent,d:Draft,action:string,patch:Record<string,
  const {data,error}=await db().rpc('jod_change_draft',{p_event:event.webhookEventId,p_user:event.source.userId,p_id:d.id,p_version:version,p_action:action,p_patch:patch});
  assertDb(error);return changeResponse(data as Change);
 }
+async function changeConfirmed(event:LineEvent,d:Draft,action:string,patch:Record<string,unknown>={},version=d.version):Promise<Message[]>{
+ const {data,error}=await db().rpc('jod_change_confirmed',{p_event:event.webhookEventId,p_user:event.source.userId,p_id:d.id,p_version:version,p_action:action,p_patch:patch});
+ assertDb(error);return changeResponse(data as Change);
+}
 async function pending(user:string):Promise<Draft[]>{
- const {data,error}=await db().from('jod_drafts').select('*').eq('user_id',user).eq('status','draft').order('created_at',{ascending:false}).limit(20);
+ const {data,error}=await db().from('jod_drafts').select('*').eq('user_id',user).eq('status','draft').is('deleted_at',null).order('created_at',{ascending:false}).limit(100);
  assertDb(error);return data as Draft[];
 }
 async function latestConfirmed(user:string):Promise<Draft|null>{
@@ -81,7 +84,7 @@ async function exportData(user:string):Promise<Message[]> {
 }
 function pendingMessage(rows:Draft[]):Message[]{
   if(!rows.length)return [text('ไม่มีรายการรอการยืนยันครับ ส่งสลิปใหม่ได้เลย'), {type:'text',text:'เริ่มต้นได้เลย',quickReply:{items:[{type:'action',action:{type:'message',label:'เพิ่มรายการ',text:'เพิ่มรายการ'}},{type:'action',action:{type:'message',label:'ส่งสลิป',text:'ส่งสลิป'}}]}}];
-  return [text(`รายการรอการยืนยัน ${rows.length}${rows.length===20?'+':''} รายการ\nสไลด์ดูรายการด้านล่างครับ`), pendingCarousel(rows)];
+  const shown=Math.min(rows.length,10);return [text(`รายการรอการยืนยัน ${rows.length} รายการ\nแสดง ${shown} รายการล่าสุด; ใช้ #รหัสรายการ ตามด้วยข้อมูลเพื่อแก้ไขรายการอื่นได้`), pendingCarousel(rows)];
 }
 async function totals(user:string,monthly:boolean):Promise<Message[]>{
  const thaiNow=new Date(Date.now()+7*3600000); const date=thaiNow.toISOString().slice(0,10);
@@ -117,14 +120,14 @@ async function startManualExpense(event:LineEvent, detail=''):Promise<Message[]>
   const base={
    user_id:user,message_id:`manual:${event.webhookEventId}`,
    image_hash:createHash('sha256').update(`manual:${user}:${event.webhookEventId}`).digest('hex'),
-   provider:'manual',occurred_at:thaiNowIso(),category:'อื่น ๆ',edit_field:'amount' as string|null,
+   provider:'manual',occurred_at:thaiNowIso(),recipient:'ไม่ระบุ',category:'อื่น ๆ',edit_field:'amount' as string|null,
   };
   let values:Record<string,unknown>={};
   const match=detail.match(/^([0-9][0-9,]*(?:\.\d{1,2})?)(?:\s*(?:บาท)?\s+(.+))?$/);
   if(match){
    values=parseAnswer('amount',match[1]);
-   if(match[2])values={...values,...parseAnswer('description',match[2]),edit_field:'category'};
-   else values={...values,edit_field:'description'};
+   if(match[2])values={...values,...parseAnswer('description',match[2]),edit_field:null};
+   else values={...values,edit_field:null};
   }
   const saved=await db().from('jod_drafts').insert({...base,...values}).select('*').single();
   if(saved.error?.code==='23505')return [text('รายการนี้ถูกสร้างไว้แล้วครับ พิมพ์ รายการค้าง เพื่อดูรายการเดิม')];
@@ -176,9 +179,13 @@ if(imageMessage){
   if(d.status==='confirmed'){
    if(d.version!==version)return [text('รายการนี้มีการเปลี่ยนแปลงแล้ว กรุณาเปิดรายการล่าสุดใหม่ครับ')];
    if(action==='delete_prompt')return [deleteRecordConfirm(d)];
-   if(action==='reopen'||action==='delete_confirmed'){
-    const changed=await db().rpc('jod_change_confirmed',{p_event:event.webhookEventId,p_user:user,p_id:d.id,p_version:version,p_action:action==='reopen'?'reopen':'delete'});
-    assertDb(changed.error);return changeResponse(changed.data as Change);
+   if(action==='reopen'||action==='edit')return [editMenu(d)];
+   if(action==='delete_confirmed')return changeConfirmed(event,d,'delete',{},version);
+   if(action==='field'){
+    const field=params.get('field');if(!['amount','date','recipient','description','category'].includes(field||''))return [text('กรุณาเลือกช่องที่ต้องการแก้ไข')];
+    const marked=await changeConfirmed(event,d,'patch',{edit_field:field},version);
+    const updated=(marked.at(-1) as Message & {type?:string})?.type==='text'?null:null;
+    const next={...d,edit_field:field,version:d.version+1};return [text(`กำลังแก้รายการ #${d.short_code} (ยอดเดิมยังนับในสรุป)`) ,review(next)];
    }
    return [latestMenu(d)];
   }
@@ -219,17 +226,13 @@ if(imageMessage){
   }
   const isTextMsg=(m:Message):m is Message & {type:'text',text:string}=>m.type==='text'&&typeof m.text==='string';
   if(input==='ล้างประวัติ')return [clearHistoryConfirm()];
-  if(input==='กู้คืนประวัติ'){
-   const recovered=await db().rpc('jod_recover_user_history',{p_user:user});assertDb(recovered.error);
-   const count=Number((recovered.data as {recovered?:number})?.recovered||0);
-   return [text(count>0?`กู้คืนรายการที่ลบแล้ว ${count} รายการสำเร็จครับ`:'ไม่มีรายการที่ลบล่าสุดให้กู้คืนครับ (อายุเกิน 7 วันหรือไม่เคยลบ)')];
-  }
+  if(input==='กู้คืนประวัติ')return [text('การกู้คืนรายการที่ลบถูกปิดแล้วครับ เพื่อป้องกันยอดกลับมาโดยไม่ตั้งใจ')];
   if(input==='ส่งออกข้อมูล')return exportData(user);
   if(input==='ยืนยันทั้งหมด'||input==='ยกเลิกทั้งหมด'){
    const rows=await pending(user);
    if(!rows.length)return [text('ไม่มีรายการรอการยืนยันครับ')];
    const action=input==='ยืนยันทั้งหมด'?'confirm':'cancel';
-   const results=await Promise.all(rows.map(d=>change(event,d,action)));
+   const results=await Promise.all(rows.map(d=>change({...event,webhookEventId:`${event.webhookEventId}:${action}:${d.id}:${d.version}`},d,action)));
    const success=results.filter(r=>r.some(m=>isTextMsg(m)&&(m.text.includes('บันทึกแล้ว')||m.text.includes('ยกเลิก')))).length;
    return [text(`${action==='confirm'?'ยืนยัน':'ยกเลิก'}สำเร็จ ${success}/${rows.length} รายการ`)];
   }
@@ -245,11 +248,17 @@ if(imageMessage){
    const category=bulkConfirm[2].trim();
    const filtered=rows.filter(d=>d.category===category);
    if(!filtered.length)return [text(`ไม่พบรายการค้างในหมวด “${category}” ครับ`)];
-   const results=await Promise.all(filtered.map(d=>change(event,d,action==='ยืนยัน'?'confirm':'cancel')));
+   const results=await Promise.all(filtered.map(d=>change({...event,webhookEventId:`${event.webhookEventId}:${action}:${d.id}:${d.version}`},d,action==='ยืนยัน'?'confirm':'cancel')));
    const success=results.filter(r=>r.some(m=>isTextMsg(m)&&(m.text.includes('บันทึกแล้ว')||m.text.includes('ยกเลิก')))).length;
    return [text(`${action}สำเร็จ ${success}/${filtered.length} รายการในหมวด “${category}”`)];
   }
   if(input==='ส่งสลิป')return [text('ส่งรูปสลิปเข้ามาในแชทนี้ได้เลยครับ ผมจะอ่านข้อมูลจากภาพ แล้วให้ตรวจสอบก่อนบันทึก')];
+  const editing=await db().from('jod_drafts').select('*').eq('user_id',user).eq('status','confirmed').not('edit_field','is',null).order('confirmed_at',{ascending:false}).limit(1).maybeSingle();assertDb(editing.error);
+  if(editing.data){
+   const d=editing.data as Draft;const field=d.edit_field!;let patch:Record<string,unknown>;
+   try{patch=parseAnswer(field,input);}catch(error){return [text((error as Error).message),review(d)];}
+   return changeConfirmed(event,d,'patch',{...patch,edit_field:null},d.version);
+  }
   const rows=await pending(user);
   if(input==='รายการค้าง')return pendingMessage(rows);
   const cancel=input.match(/^ยกเลิก\s+#?([a-f0-9]{10})$/i);

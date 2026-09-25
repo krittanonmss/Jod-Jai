@@ -2,8 +2,8 @@ begin;
 do $$
 declare d uuid; confirmed_d uuid; other_d uuid; r jsonb; total bigint; claim public.jod_events; accepted jsonb; old_lease uuid; affected integer;
 begin
- insert into public.jod_drafts(user_id,message_id,image_hash,provider,amount_satang,occurred_at,description,category,reference)
- values('__jod_test_owner__','__jod_test_message__','__jod_test_hash__','scb',200000,'2026-09-22T12:40:00Z','ทดสอบ','อื่น ๆ','__jod_ref__') returning id into d;
+ insert into public.jod_drafts(user_id,message_id,image_hash,provider,amount_satang,occurred_at,recipient,description,category,reference)
+ values('__jod_test_owner__','__jod_test_message__','__jod_test_hash__','scb',200000,'2026-09-22T12:40:00Z','ผู้รับทดสอบ','ทดสอบ','อื่น ๆ','__jod_ref__') returning id into d;
  select coalesce(sum(total_satang),0) into total from public.jod_summary('__jod_test_owner__','2026-09-01','2026-10-01');
  if total<>0 then raise exception 'Draft counted in summary';end if;
  r:=public.jod_change_draft('__jod_wrong_user__','another_user',d,1,'confirm');
@@ -25,10 +25,8 @@ begin
  if total<>0 then raise exception 'Cross-user summary';end if;
  r:=public.jod_change_confirmed('__jod_confirmed_wrong__','another_user',confirmed_d,3,'delete');
  if r->>'code'<>'not_found' then raise exception 'Cross-user confirmed deletion allowed';end if;
- r:=public.jod_change_confirmed('__jod_reopen__','__jod_test_owner__',confirmed_d,3,'reopen');
- if r->>'code'<>'reopened' then raise exception 'Confirmed record cannot be reopened';end if;
- r:=public.jod_change_draft('__jod_reconfirm__','__jod_test_owner__',confirmed_d,4,'confirm');
- if r->>'code'<>'saved' then raise exception 'Reopened record cannot be confirmed';end if;
+ r:=public.jod_change_confirmed('__jod_edit_confirmed__','__jod_test_owner__',confirmed_d,3,'patch','{"description":"แก้ไขหลังยืนยัน"}');
+ if r->>'code'<>'updated' or r#>>'{draft,status}'<>'confirmed' then raise exception 'Confirmed edit did not preserve ledger state';end if;
  begin
   insert into public.jod_drafts(user_id,message_id,image_hash,provider,reference) values('__jod_test_owner__','__duplicate__','different_hash','scb','__jod_ref__');
   raise exception 'Duplicate slip reference accepted';
@@ -38,6 +36,10 @@ begin
  if r->>'code'<>'incomplete' then raise exception 'Incomplete confirmation';end if;
  r:=public.jod_change_draft('__jod_cancel__','__jod_test_owner__',d,1,'cancel');
  if r->>'code'<>'cancelled' then raise exception 'Cancellation failed';end if;
+ insert into public.jod_drafts(user_id,message_id,image_hash,provider,amount_satang,occurred_at,recipient,status)
+ values('__jod_test_owner__','__no_description__','__no_description_hash__','manual',100,'2026-09-01','ไม่ระบุ','draft') returning id into d;
+ r:=public.jod_change_draft('__jod_no_description__','__jod_test_owner__',d,1,'confirm');
+ if r->>'code'<>'saved' then raise exception 'Optional description blocked confirmation';end if;
  insert into public.jod_drafts(user_id,message_id,image_hash,provider,amount_satang,occurred_at,description,status)
  values('__jod_clear_other__','__jod_clear_other_message__','__jod_clear_other_hash__','manual',100,'2026-09-01','keep','confirmed') returning id into other_d;
  r:=public.jod_clear_user_history('__jod_test_owner__','__keep_current_event__');

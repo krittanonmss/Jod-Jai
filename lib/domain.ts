@@ -60,14 +60,14 @@ export function normalizeSlip(slip: Slip) {
 export function missingField(draft: Draft): string | null {
   if (draft.amount_satang === null || draft.amount_satang <= 0) return 'amount';
   if (!draft.occurred_at) return 'date';
-  if (!draft.description?.trim()) return 'description';
+  if (!draft.recipient?.trim()) return 'recipient';
   return null;
 }
 export function getMissingFields(draft: Draft): string[] {
   const fields: string[] = [];
   if (draft.amount_satang === null || draft.amount_satang <= 0) fields.push('amount');
   if (!draft.occurred_at) fields.push('date');
-  if (!draft.description?.trim()) fields.push('description');
+  if (!draft.recipient?.trim()) fields.push('recipient');
   return fields;
 }
 export function money(amount: number): string {

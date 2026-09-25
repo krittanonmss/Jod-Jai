@@ -123,7 +123,7 @@ export function deleteRecordConfirm(d:Draft):Message {
  return {type:'flex',altText:'ยืนยันลบรายการล่าสุด',contents:{type:'bubble',body:{type:'box',layout:'vertical',spacing:'md',contents:[
   {type:'text',text:'ลบรายการนี้?',weight:'bold',size:'lg',color:'#D83E8C'},
   {type:'text',text:`${d.description||d.recipient||'ไม่ระบุ'}\n${money(d.amount_satang||0)} บาท`,wrap:true,size:'sm'},
-  {type:'text',text:'เมื่อลบแล้ว รายการจะไม่นับในสรุป',wrap:true,size:'xs',color:'#777777'},
+  {type:'text',text:'เมื่อลบแล้ว รายการจะไม่นับในสรุปและกู้คืนไม่ได้',wrap:true,size:'xs',color:'#777777'},
  ]},footer:{type:'box',layout:'vertical',spacing:'sm',contents:[
   actionButton('ยืนยันลบ',data('delete_confirmed',d),'primary'),messageButton('ยกเลิก','ดูรายรับรายจ่าย'),
  ]}}};
@@ -191,7 +191,7 @@ export function moreMenu():Message {
 }
 export function personalDataMenu():Message {
   return {type:'text',text:'เลือกจัดการข้อมูลหรือดูวิธีใช้ได้เลยครับ',quickReply:{items:[
-    quickMessage('ส่งออกข้อมูล'),quickMessage('ล้างประวัติ'),quickMessage('กู้คืนประวัติ'),quickMessage('สถานะระบบ'),quickMessage('เชิญเพื่อน'),quickMessage('ผู้ใช้งาน'),quickMessage('ขอรหัสเชื่อมต่อ'),quickMessage('ช่วยเหลือ'),
+    quickMessage('ส่งออกข้อมูล'),quickMessage('ล้างประวัติ'),quickMessage('สถานะระบบ'),quickMessage('เชิญเพื่อน'),quickMessage('ผู้ใช้งาน'),quickMessage('ขอรหัสเชื่อมต่อ'),quickMessage('ช่วยเหลือ'),
   ]}};
 }
-export const help = 'ส่งสลิปหรือกด “เพิ่มรายการ” เพื่อเริ่มจดรายจ่าย\nระบบจะให้ตรวจและยืนยันก่อนบันทึกเสมอ\n\nดูข้อมูล: ดูรายรับรายจ่าย / สรุปวันนี้ / สรุปเดือนนี้\nจัดการ: รายการค้าง / แก้รายการล่าสุด / ลบรายการล่าสุด / ยืนยันทั้งหมด / ยกเลิกทั้งหมด / ยืนยันหมวด <หมวด> / ยกเลิกหมวด <หมวด>\nข้อมูลส่วนตัว: ส่งออกข้อมูล / ล้างประวัติ / กู้คืนประวัติ\nเจ้าของระบบ: สถานะระบบ / เชิญเพื่อน / ผู้ใช้งาน / ขอรหัสเชื่อมต่อ\n\nข้อจำกัด: รูปสลิปต้องไม่เกิน 12 MB ส่งครบ 30 ข้อความ/นาทีจะถูกจำกัดชั่วคราว';
+export const help = 'ส่งสลิปหรือกด “เพิ่มรายการ” เพื่อเริ่มจดรายจ่าย\nระบบจะให้ตรวจและยืนยันก่อนบันทึกเสมอ\n\nข้อมูลจำเป็น: ยอดเงิน / วันเวลา / ผู้รับเงิน\nรายละเอียดและหมวดเป็นข้อมูลเสริม\n\nดูข้อมูล: ดูรายรับรายจ่าย / สรุปวันนี้ / สรุปเดือนนี้\nจัดการ: รายการค้าง / แก้รายการล่าสุด / ลบรายการล่าสุด / ยืนยันทั้งหมด / ยกเลิกทั้งหมด / ยืนยันหมวด <หมวด> / ยกเลิกหมวด <หมวด>\nข้อมูลส่วนตัว: ส่งออกข้อมูล / ล้างประวัติ\nเจ้าของระบบ: สถานะระบบ / เชิญเพื่อน / ผู้ใช้งาน / ขอรหัสเชื่อมต่อ\n\nข้อจำกัด: รูปสลิปต้องไม่เกิน 12 MB ส่งครบ 30 ข้อความ/นาทีจะถูกจำกัดชั่วคราว';

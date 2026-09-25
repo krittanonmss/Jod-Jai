@@ -66,9 +66,10 @@ test('no configured LINE owner denies access',()=>{
  if(original===undefined)delete process.env.LINE_ALLOWED_USER_IDS;else process.env.LINE_ALLOWED_USER_IDS=original;
 });
 const draft={id:'07e061ac-f717-4297-a838-ffab91e24e33',short_code:'ABCDE12345',version:4,amount_satang:9600,occurred_at:'2026-09-23T10:22:00Z',description:'ค่าอาหาร',category:'อาหาร',recipient:'ร้านค้า',edit_field:null} as Draft;
-test('complete draft exposes explicit versioned confirmation; incomplete draft asks first',()=>{
+test('three-field draft exposes confirmation while description remains optional',()=>{
  const serialized=JSON.stringify(review(draft));assert.match(serialized,/ยืนยันและบันทึก/);assert.match(serialized,/v=4/);
- assert.equal(missingField({...draft,description:null}),'description');assert.equal(review({...draft,description:null}).type,'text');
+ assert.equal(missingField({...draft,description:null}),null);assert.equal(review({...draft,description:null}).type,'flex');
+ assert.equal(missingField({...draft,recipient:null}),'recipient');assert.equal(review({...draft,recipient:null}).type,'text');
  assert.equal(review({...draft,edit_field:'amount'}).type,'text');
 });
 test('summary and overview use compact flex messages',()=>{
