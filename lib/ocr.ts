@@ -48,29 +48,47 @@ export async function recognizeSlip(image:Buffer) {
   }
   await worker.setParameters({tessedit_pageseg_mode:PSM.SPARSE_TEXT,preserve_interword_spaces:'1'});
   const prepared=await sharp(source).resize({width:1500}).png().toBuffer();
-  const result=await worker.recognize(prepared);const slip=parseSlipText(result.data.text);
+  const preparedMeta=await sharp(prepared).metadata();
+  const result=await worker.recognize(prepared,{}, {blocks:true});const slip=parseSlipText(result.data.text);
   if(slip.provider==='unsupported'){
-   await worker.reinitialize('eng');await worker.setParameters({tessedit_pageseg_mode:PSM.SPARSE_TEXT});
    await worker.setParameters({tessedit_pageseg_mode:PSM.SINGLE_WORD});
    const header=(await worker.recognize(await crop([.405,.048,.215,.071]))).data.text;
-   if(/SCB/.test(header))slip.provider='scb';
+   if(/SCB/i.test(header))slip.provider='scb';
+   else {
+    const makeHeader=(await worker.recognize(await crop([.68,.02,.31,.16]))).data.text;
+    if(/make/i.test(makeHeader))slip.provider='make';
+   }
   }
   const r=regions[slip.provider];const debug:Record<string,string>={};
   if(r){
-   await worker.reinitialize('eng+tha');await worker.setParameters({tessedit_pageseg_mode:PSM.SINGLE_LINE});
+   await worker.setParameters({tessedit_pageseg_mode:PSM.SINGLE_LINE});
    let dateText=(await worker.recognize(await crop(r.date))).data.text;let parsed=parseDateLine(dateText);
    if(!parsed.date||!parsed.time){const retryText=(await worker.recognize(await crop(r.date,true))).data.text;dateText+=`\n${retryText}`;const retryParsed=parseDateLine(dateText);parsed={date:retryParsed.date||parsed.date,time:retryParsed.time||parsed.time};}
    debug.date=dateText;
    if(parsed.date)slip.date=parsed.date;if(parsed.time)slip.time=parsed.time;
-   // Use the fixed amount region only if the labelled full-image amount was unreadable.
-   if(!slip.amount){
-    await worker.reinitialize('eng');await worker.setParameters({tessedit_pageseg_mode:PSM.SINGLE_LINE});
+   // MAKE's large amount is more reliable than a digit inferred from the full image.
+   if(slip.provider==='make'){
+    await worker.setParameters({tessedit_pageseg_mode:PSM.SPARSE_TEXT});
+    const amountArea=await sharp(source).extract({left:Math.round(meta.width!*.02),top:Math.round(meta.height!*.54),width:Math.round(meta.width!*.48),height:Math.round(meta.height!*.32)}).resize({width:900}).grayscale().normalize().sharpen().png().toBuffer();
+    const amountResult=await worker.recognize(amountArea);debug.amount=amountResult.data.text;
+    const amountMatch=amountResult.data.text.match(/(?:^|\s)([1-9]\d{0,9}(?:,\d{3})*\.\d{2})(?=\s|บาท|THB|[a-z]{1,4}|$)/im);
+    if(amountMatch && amountResult.data.confidence>=50)slip.amount=amountMatch[1];
+   }else if(!slip.amount){
     const amountText=(await worker.recognize(await crop(r.amount))).data.text;debug.amount=amountText;
     const match=amountText.match(/^\s*(\d[\d,]*(?:\.\d{2})?)\s*(?:บาท|THB|[a-z]{1,4})?\s*$/i);
     if(match)slip.amount=match[1];
    }
-   await worker.reinitialize('eng+tha');await worker.setParameters({tessedit_pageseg_mode:PSM.SINGLE_BLOCK});
-   const recipientText=(await worker.recognize(await crop(r.recipient))).data.text.trim();debug.recipient=recipientText;
+   await worker.setParameters({tessedit_pageseg_mode:PSM.SINGLE_BLOCK});
+   let recipientRegion=r.recipient;
+   if(slip.provider==='make'){
+    const amountLine=result.data.blocks?.flatMap(block=>block.paragraphs.flatMap(p=>p.lines)).find(line=>
+     line.bbox.x0/preparedMeta.width!<.55 && line.bbox.y0/preparedMeta.height!>.5 && /[1-9]\d*[.,]\d{2}/.test(line.text));
+    if(amountLine){
+     const shift=Math.max(-.03,Math.min(.08,(amountLine.bbox.y0/preparedMeta.height!-.625)*.6));
+     recipientRegion=[r.recipient[0],Math.max(0,Math.min(.94,r.recipient[1]+shift)),r.recipient[2],r.recipient[3]];
+    }
+   }
+   const recipientText=(await worker.recognize(await crop(recipientRegion))).data.text.trim();debug.recipient=recipientText;
    if(recipientText && recipientText.length<200)slip.recipient=recipientText.split(/Biller ID/i)[0].replace(/\n/g,' ').replace(/^[^a-zA-Zก-๙]+/,'').replace(/([ก-๙])\s+(?=[ก-๙])/g,'$1').trim();
   }
   return {slip,text:result.data.text,confidence:result.data.confidence,debug};

@@ -133,16 +133,20 @@ async function startManualExpense(event:LineEvent, detail=''):Promise<Message[]>
 }
 export async function processEvent(event:LineEvent):Promise<Message[]>{
  const user=event.source.userId!;
+ const imageMessage=event.type==='message' && event.message?.type==='image'?event.message:null;
+ const existingPromise=imageMessage?db().from('jod_drafts').select('*').eq('user_id',user).eq('message_id',imageMessage.id).maybeSingle():null;
  const replay=await db().from('jod_mutations').select('result').eq('event_id',event.webhookEventId).maybeSingle();
  assertDb(replay.error);if(replay.data)return changeResponse(replay.data.result as Change);
  if(event.type==='follow')return [text('เชื่อมบัญชี Jod-Jai เรียบร้อยแล้ว ✅\n\n'+help)];
-if(event.type==='message' && event.message?.type==='image'){
-   const existing=await db().from('jod_drafts').select('*').eq('user_id',user).eq('message_id',event.message.id).maybeSingle();
+if(imageMessage){
+   const existing=await existingPromise!;
    assertDb(existing.error);if(existing.data){const d=existing.data as Draft;return d.status==='draft'?[review(d)]:changeResponse({code:d.status,draft:d});}
-   const image=await getImage(event.message.id);const hash=createHash('sha256').update(image).digest('hex');
-   const duplicate=await db().from('jod_drafts').select('*').eq('user_id',user).eq('image_hash',hash).neq('status','cancelled').maybeSingle();
+   const image=await getImage(imageMessage.id);const hash=createHash('sha256').update(image).digest('hex');
+   const [duplicate,qrHash]=await Promise.all([
+    db().from('jod_drafts').select('*').eq('user_id',user).eq('image_hash',hash).neq('status','cancelled').maybeSingle(),
+    slipQrHash(image),
+   ]);
    assertDb(duplicate.error);if(duplicate.data){const d=duplicate.data as Draft;return [text(`สลิปนี้มีแล้ว #${d.short_code} จึงไม่สร้างซ้ำครับ`),...(d.status==='draft'?[review(d)]:[])];}
-   const qrHash=await slipQrHash(image);
    if(qrHash){
     const qrDuplicate=await db().from('jod_drafts').select('*').eq('user_id',user).eq('qr_hash',qrHash).neq('status','cancelled').maybeSingle();assertDb(qrDuplicate.error);
     if(qrDuplicate.data){const d=qrDuplicate.data as Draft;return [text(`พบ QR สลิปเดิม #${d.short_code} จึงไม่สร้างซ้ำครับ`),...(d.status==='draft'?[review(d)]:[])];}
@@ -151,7 +155,7 @@ if(event.type==='message' && event.message?.type==='image'){
   if(result.slip.provider==='unsupported')return [text('ยังระบุแบบสลิปไม่ได้ครับ รองรับเป๋าตัง, MAKE, Bangkok Bank และ SCB กรุณาส่งภาพเต็มที่ชัดเจน')];
   const values=await applyMerchantSuggestion(user,normalizeSlip(result.slip));
   if(values.amount_satang===0)values.amount_satang=null;
-  const saved=await db().from('jod_drafts').insert({...values,user_id:user,message_id:event.message.id,image_hash:hash,qr_hash:qrHash}).select('*').single();
+  const saved=await db().from('jod_drafts').insert({...values,user_id:user,message_id:imageMessage.id,image_hash:hash,qr_hash:qrHash}).select('*').single();
   if(saved.error?.code==='23505')return [text('พบสลิปหรือเลขอ้างอิงซ้ำ จึงไม่สร้างรายจ่ายซ้ำครับ พิมพ์ รายการค้าง เพื่อดูรายการเดิม')];
   assertDb(saved.error);return [review(saved.data as Draft)];
  }
