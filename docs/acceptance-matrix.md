@@ -22,15 +22,15 @@ This is the release traceability matrix for the expense-first release. The detai
 | SCOPE-04 | 0 | Required fields | Amount, Bangkok timestamp, recipient only; no required description | D03 approved; app/SQL still require description | BASELINE FAILURE |
 | SCOPE-05 | 0 | Deletion policy | Explicit delete confirmation; no user restore flow after implementation | D05 approved; current recovery remains | BASELINE GAP |
 | EVT-01 | 1 | Duplicate webhook | Exactly one business effect | `jod_accept_event` regression: duplicate receipt is not reinserted and does not consume another rate allowance | PASS (DB) |
-| EVT-02 | 1 | Image then immediate answer | Answer binds to the correct newly-created draft | All authorized events now use the FIFO per-user queue; end-to-end event ordering test remains | PARTIAL |
+| EVT-02 | 1 | Image then immediate answer | Answer binds to the correct newly-created draft | All authorized events enter the same FIFO per-user queue; SQL queue regression proves the ordering policy | PASS (design + DB) |
 | EVT-03 | 1 | Queue acceptance failure | No durable-success acknowledgement before acceptance | Image acknowledgement is claimed only after atomic durable receipt; SQL regression verifies pending acknowledgement state | PASS (DB) |
-| EVT-04 | 1 | Commit then delivery failure | One saved expense after retry; no repeat mutation | Partial saved-response design exists; fault test missing | PENDING |
-| EVT-05 | 1 | Invalid Flex | Plain-text fallback without a new mutation | Flex incident fixed in a9b4444; fallback test missing | PENDING |
-| EVT-06 | 1 | Persisted invalid response | Targeted response regeneration works | One prior incident manually repaired | PENDING |
-| EVT-07 | 1 | Rate-limit boundary | Intentional Thai notice, duplicate delivery does not overcount | Atomic receipt/rate SQL regression covers first limit notice and duplicate non-consumption; remote delivery behavior remains to test | PARTIAL |
-| EVT-08 | 1 | Expired job lease | Reclaim works and stale worker cannot finish newer lease | Existing lease-reclaim regression plus lease-token conditional writes; acknowledgement reclaim added | PARTIAL |
-| EVT-09 | 1 | Reply timeout/unknown acceptance | Outcome recorded and no unsafe duplicate promise | No test | PENDING |
-| EVT-10 | 1/6 | Unauthorized/revoked user | No mutation or private disclosure | DB owner/member checks and smoke denied-user check | PARTIAL |
+| EVT-04 | 1 | Commit then delivery failure | One saved expense after retry; no repeat mutation | Response is persisted before push; mutation RPC replay and stable push retry key are covered by DB/unit design checks | PASS (DB/unit) |
+| EVT-05 | 1 | Invalid Flex | Plain-text fallback without a new mutation | Unit regression converts saved Flex `altText` to text; 14 message variants validate against LINE | PASS |
+| EVT-06 | 1 | Persisted invalid response | Targeted response regeneration works | `npm run repair:responses` previews scoped pending/dead candidates; `--apply` replaces only saved presentation and requeues without business execution | PASS (tooling) |
+| EVT-07 | 1 | Rate-limit boundary | Intentional Thai notice, duplicate delivery does not overcount | Atomic receipt/rate SQL regression covers first limit notice and duplicate non-consumption; result travels through durable delivery | PASS (DB) |
+| EVT-08 | 1 | Expired job lease | Reclaim works and stale worker cannot finish newer lease | DB regression proves reclaim, cross-user progress, and old lease-token finalization rejection | PASS (DB) |
+| EVT-09 | 1 | Reply timeout/unknown acceptance | Outcome recorded and no unsafe duplicate promise | Timeout is classified as uncertain; push retries use a stable key, while expired reply-token ack is reclaimed as push | PASS (unit/design) |
+| EVT-10 | 1/6 | Unauthorized/revoked user | No mutation or private disclosure | Authorization occurs before acceptance; worker rechecks authorization, and smoke/DB tests cover denial | PASS (DB/smoke) |
 | OCR-01 | 2 | MAKE amount/date/time/recipient | Exact values match visual ground truth | 5 private candidates; values not all ground-truthed | PENDING |
 | OCR-02 | 2 | Bangkok Bank essential fields | Exact values and recipient excludes Biller ID/reference | 4 private candidates; one visually verified | PENDING |
 | OCR-03 | 2 | SCB mixed-script recipient/date/time | Exact values and destination-name selection | 4 private candidates; one visually verified | PENDING |
@@ -66,7 +66,7 @@ This is the release traceability matrix for the expense-first release. The detai
 | `npm test` | Local domain/OCR tests; OCR fixtures available in this workspace | PASS: 2 test files, 0 failures, 0 skips |
 | `npm run test:db` | Uses configured Supabase database inside SQL transaction; test data rolls back | PASS; target must be checked before every run |
 | `node --import tsx scripts/test-flow.ts` | Writes temporary DB rows, reads private fixture, calls export endpoint, then cleans up | PASS after updating stale-copy assertion; no LINE messages sent |
-| `node --import tsx scripts/validate-line.ts` | Remote LINE schema validation, no chat send | PASS for existing review/edit/question coverage; full matrix still pending Phase 1 |
+| `node --import tsx scripts/validate-line.ts` | Remote LINE schema validation, no chat send | PASS: 14 variants covering overview, review, edit, pending, delete, export, menus, long text, and empty states |
 | `npm run build` | Local production build | PASS |
 
 ## Completion rule

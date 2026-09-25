@@ -83,3 +83,7 @@ Open constraints carried into later phases:
 3. The private original slips remain excluded from Git and CI. Phase 2 must add ignored exact-value regression expectations after conservative recipient normalization is defined.
 
 Next phase: Phase 1 — reliable event receipt, ordering, idempotency, durable result delivery, and response timing instrumentation.
+
+## Phase 1 closure
+
+Phase 1 completed on 2026-09-26. `jod_events` now separates receipt, acknowledgement, saved result, and result delivery; all authorized events share per-user FIFO ordering. The worker stores safe timing deltas and error classes only, never image bytes, tokens, or OCR text. LINE validation accepted 14 representative message variants, and the response-repair preview found zero candidates at closure. Database regressions cover duplicate receipt/rate accounting, acknowledgement claim, rate boundary, lease reclaim, stale-lease finalization rejection, and an unrelated user's progress while another user is blocked.

@@ -1,6 +1,6 @@
 begin;
 do $$
-declare d uuid; confirmed_d uuid; other_d uuid; r jsonb; total bigint; claim public.jod_events; accepted jsonb;
+declare d uuid; confirmed_d uuid; other_d uuid; r jsonb; total bigint; claim public.jod_events; accepted jsonb; old_lease uuid; affected integer;
 begin
  insert into public.jod_drafts(user_id,message_id,image_hash,provider,amount_satang,occurred_at,description,category,reference)
  values('__jod_test_owner__','__jod_test_message__','__jod_test_hash__','scb',200000,'2026-09-22T12:40:00Z','ทดสอบ','อื่น ๆ','__jod_ref__') returning id into d;
@@ -82,12 +82,19 @@ begin
   if public.jod_pair_owner('__attacker__') then raise exception 'Owner pairing can be stolen';end if;
   if not public.jod_pair_owner('__pair_owner__') then raise exception 'Owner pairing replay failed';end if;
  end if;
- insert into public.jod_events(event_id,user_id,occurred_ms,payload) values('__job_one__','__queue_owner__',1,'{}'),('__job_two__','__queue_owner__',2,'{}');
+ insert into public.jod_events(event_id,user_id,occurred_ms,payload) values('__job_one__','__queue_owner__',1,'{}'),('__job_two__','__queue_owner__',2,'{}'),('__job_other__','__queue_other__',3,'{}');
  select * into claim from public.jod_claim_job();
  if claim.event_id<>'__job_one__' then raise exception 'Queue order incorrect';end if;
- if exists(select 1 from public.jod_claim_job()) then raise exception 'Same user runs concurrently';end if;
- update public.jod_events set lease_until=now()-interval '1 second' where id=claim.id;
+ old_lease:=claim.lease_token;
+ select * into claim from public.jod_claim_job();
+ if claim.event_id<>'__job_other__' then raise exception 'Slow user globally blocked another user';end if;
+ update public.jod_events set status='done',lease_until=null where id=claim.id and lease_token=claim.lease_token;
+ select * into claim from public.jod_claim_job();
+ if found then raise exception 'Same user runs concurrently';end if;
+ update public.jod_events set lease_until=now()-interval '1 second' where event_id='__job_one__';
  select * into claim from public.jod_claim_job();
  if claim.event_id<>'__job_one__' or claim.attempts<>2 then raise exception 'Crash lease recovery failed';end if;
+ update public.jod_events set status='done' where event_id='__job_one__' and lease_token=old_lease; get diagnostics affected=row_count;
+ if affected<>0 then raise exception 'Stale lease finalized newer work';end if;
 end $$;
 rollback;

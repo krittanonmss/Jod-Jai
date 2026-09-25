@@ -329,7 +329,7 @@ These describe document progress, not tool-level goal status.
 
 Initial tracker:
   Phase 0: DONE (baseline and design decisions recorded 2026-09-26)
-  Phase 1: IN_PROGRESS (durable receipt, ordered queue, and delivery recovery deployed 2026-09-26)
+  Phase 1: DONE (durable receipt, ordered queue, delivery recovery, validation, and crash evidence recorded 2026-09-26)
   Phase 2: NOT_STARTED
   Phase 3: NOT_STARTED
   Phase 4: NOT_STARTED
@@ -467,7 +467,7 @@ Output: Durable, replay-safe processing with intentional responses.
     Completion must match the active lease token; stale workers cannot finalize
     or overwrite a newer worker's result.
 
-[ ] P1.3 Implement structured error classification.
+[x] P1.3 Implement structured error classification.
     Check exact LINE behavior against official documentation during implementation.
     Invalid Flex payload -> plain-text fallback from the same saved business result.
     Invalid/expired reply token -> designed push fallback, no repeated mutation.
@@ -477,7 +477,7 @@ Output: Durable, replay-safe processing with intentional responses.
     DB transient error -> retry the correct stage, preserving completed effects.
     Mark done only after the defined delivery success/acceptance condition.
 
-[ ] P1.4 Repair persisted invalid responses safely.
+[x] P1.4 Repair persisted invalid responses safely.
     Store renderer version and sufficient safe result data when necessary.
     Repair tooling previews criteria/count and selects known affected jobs.
     Regenerate delivery content without re-confirming/re-editing/re-deleting.
@@ -492,21 +492,21 @@ Output: Durable, replay-safe processing with intentional responses.
     Throttle notices themselves and await/schedule delivery reliably.
     Test boundary counts, duplicate events, and the next time window.
 
-[ ] P1.6 Add privacy-conscious timing.
+[x] P1.6 Add privacy-conscious timing.
     Measure received, authorized, durable accepted, queued, claimed, downloaded,
     processed, rendered, LINE accepted, and retry durations.
     Log IDs/stages/error classes, not secrets, images, or full OCR text.
     Bound retention. Do not duplicate whole private results in metrics.
     Keep server-to-LINE and user-visible latency as separate measurements.
 
-[ ] P1.7 Expand LINE validation coverage.
+[x] P1.7 Expand LINE validation coverage.
     Validate overview, today/month, review, edit, pending, delete/clear, export,
     menus, quick replies, and postbacks.
     Include empty states, long Thai/English text, max supported items/categories.
     Batch within current documented API limits.
     Use validation endpoints; do not send fixtures to real users.
 
-[ ] P1.8 Test crash, lease, and concurrency behavior.
+[x] P1.8 Test crash, lease, and concurrency behavior.
     Crash before commit, after commit/before send, and after possible remote acceptance.
     Expired lease can be reclaimed; stale lease cannot finalize current work.
     One user's slow OCR must not globally lock unrelated users.

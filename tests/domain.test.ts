@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {createHmac} from 'node:crypto';
 import {satang,thaiDate,normalizeSlip,normalizeMerchant,parseAnswer,missingField,Draft,parsePendingSelection} from '../lib/domain';
 import {parseSlipText,parseDateLine,cleanRecipient} from '../lib/slip-parser';
-import {validSignature,fallbackMessages} from '../lib/line';
+import {validSignature,fallbackMessages,LineDeliveryError} from '../lib/line';
 import {review,summaryCard,overviewCard,clearHistoryConfirm,deleteRecordConfirm,exportCard,managementMenu,moreMenu,personalDataMenu} from '../lib/messages';
 import {allowedUser} from '../lib/config';
 test('money uses integer satang, rejects negatives and ambiguous decimals',()=>{
@@ -55,6 +55,10 @@ test('LINE signature checks exact raw body and rejects missing/altered signature
 test('invalid Flex can fall back to its persisted user-visible summary',()=>{
  assert.deepEqual(fallbackMessages([{type:'flex',altText:'บันทึกแล้ว 96.00 บาท'}]),[{type:'text',text:'บันทึกแล้ว 96.00 บาท'}]);
  assert.deepEqual(fallbackMessages([{type:'image',originalContentUrl:'x'}]),[{type:'text',text:'บันทึกผลการทำรายการแล้ว แต่แสดงรายละเอียดไม่สำเร็จ กรุณาลองเปิดรายการล่าสุดอีกครั้งครับ'}]);
+});
+test('LINE delivery errors retain actionable retry classifications',()=>{
+ assert.equal(new LineDeliveryError('auth_or_config','bad token').kind,'auth_or_config');
+ assert.equal(new LineDeliveryError('timeout_or_network','unknown acceptance').kind,'timeout_or_network');
 });
 test('no configured LINE owner denies access',()=>{
  const original=process.env.LINE_ALLOWED_USER_IDS;process.env.LINE_ALLOWED_USER_IDS='';assert.equal(allowedUser('U1'),false);

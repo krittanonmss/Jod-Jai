@@ -7,6 +7,13 @@ import {text} from './messages';
 type EventJob={id:string;user_id:string;lease_token:string;attempts:number;payload:LineEvent;response:Message[]|null;ack_status:string;ack_lease_token:string|null;received_at?:string;};
 
 function elapsed(receivedAt:string|undefined){return receivedAt?Math.max(0,Date.now()-new Date(receivedAt).getTime()):null;}
+function retryPlan(error:unknown,attempts:number){
+ if(error instanceof LineDeliveryError){
+  if(error.kind==='auth_or_config'||error.kind==='invalid_payload')return {status:'dead',delaySeconds:0};
+  if(error.kind==='rate_or_quota')return {status:'pending',delaySeconds:300};
+ }
+ return {status:attempts>=5?'dead':'pending',delaySeconds:Math.min(300,2**attempts*10)};
+}
 async function deliverResult(job:EventJob,messages:Message[]){
  try{return await pushMessages(job.user_id,messages,`${job.id}:result`);}
  catch(error){
@@ -63,7 +70,8 @@ export async function drainJobs(budgetMs=190000){
    const safeError=error instanceof LineDeliveryError?`${error.kind}: ${error.message}`.slice(0,160):error instanceof Error?error.message.slice(0,160):'Processing failed';
    // No images, tokens, raw OCR text or user message contents in logs.
    console.error('Job failed',job.id,safeError);
-   const update=await db().from('jod_events').update({status:job.attempts>=5?'dead':'pending',lease_until:null,last_error:safeError,available_at:new Date(Date.now()+Math.min(300,2**job.attempts*10)*1000).toISOString()}).eq('id',job.id).eq('lease_token',job.lease_token);assertDb(update.error);
+   const plan=retryPlan(error,job.attempts);
+   const update=await db().from('jod_events').update({status:plan.status,lease_until:null,last_error:safeError,available_at:new Date(Date.now()+plan.delaySeconds*1000).toISOString()}).eq('id',job.id).eq('lease_token',job.lease_token);assertDb(update.error);
   }
  }
  return processed;
