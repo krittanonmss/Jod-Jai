@@ -27,7 +27,13 @@ export async function recognizeSlip(image:Buffer) {
  try {
   const source=await sharp(image,{limitInputPixels:25_000_000}).rotate().png().toBuffer();
   const meta=await sharp(source).metadata();
-  async function crop(rect:Rect){const [x,y,w,h]=rect;return sharp(source).extract({left:Math.round(meta.width!*x),top:Math.round(meta.height!*y),width:Math.round(meta.width!*w),height:Math.round(meta.height!*h)}).resize({height:100}).grayscale().normalize().png().toBuffer();}
+  async function crop(rect:Rect,retry=false){
+   let [x,y,w,h]=rect;
+   if(retry){x=Math.max(0,x-w*.08);y=Math.max(0,y-h*.65);w=Math.min(1-x,w*1.16);h=Math.min(1-y,h*2.3);}
+   let pipeline=sharp(source).extract({left:Math.round(meta.width!*x),top:Math.round(meta.height!*y),width:Math.max(1,Math.round(meta.width!*w)),height:Math.max(1,Math.round(meta.height!*h))}).resize({height:retry?180:110}).grayscale().normalize().sharpen();
+   if(retry)pipeline=pipeline.threshold(175);
+   return pipeline.png().toBuffer();
+  }
   await worker.setParameters({tessedit_pageseg_mode:PSM.SPARSE_TEXT,preserve_interword_spaces:'1'});
   const prepared=await sharp(source).resize({width:1500}).png().toBuffer();
   const result=await worker.recognize(prepared);const slip=parseSlipText(result.data.text);
@@ -39,10 +45,11 @@ export async function recognizeSlip(image:Buffer) {
   }
   const r=regions[slip.provider];const debug:Record<string,string>={};
   if(r){
-   await worker.reinitialize('tha');await worker.setParameters({tessedit_pageseg_mode:PSM.SINGLE_LINE});
-   const dateText=(await worker.recognize(await crop(r.date))).data.text;debug.date=dateText;
-   const parsed=parseDateLine(dateText);
-   if(parsed.date && parsed.time){slip.date=parsed.date;slip.time=parsed.time;}
+   await worker.reinitialize('eng+tha');await worker.setParameters({tessedit_pageseg_mode:PSM.SINGLE_LINE});
+   let dateText=(await worker.recognize(await crop(r.date))).data.text;let parsed=parseDateLine(dateText);
+   if(!parsed.date||!parsed.time){const retryText=(await worker.recognize(await crop(r.date,true))).data.text;dateText+=`\n${retryText}`;const retryParsed=parseDateLine(dateText);parsed={date:retryParsed.date||parsed.date,time:retryParsed.time||parsed.time};}
+   debug.date=dateText;
+   if(parsed.date)slip.date=parsed.date;if(parsed.time)slip.time=parsed.time;
    // Use the fixed amount region only if the labelled full-image amount was unreadable.
    if(!slip.amount){
     await worker.reinitialize('eng');await worker.setParameters({tessedit_pageseg_mode:PSM.SINGLE_LINE});

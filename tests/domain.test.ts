@@ -19,6 +19,11 @@ test('date parsing never mistakes a decimal fee for time',()=>{
  assert.deepEqual(parseDateLine('23 ก.ย. 2569,17:22'),{date:'2569-09-23',time:'17:22'});
  assert.deepEqual(parseDateLine('22 กูย. 2569 19:43 น.'),{date:'2569-09-22',time:'19:43'});
 });
+test('date parsing tolerates labels, numeric dates, short Buddhist years and OCR separators',()=>{
+ assert.deepEqual(parseDateLine('วันที่ 23 ก.ย. 69 เวลา 17.22 น.'),{date:'2569-09-23',time:'17:22'});
+ assert.deepEqual(parseDateLine('ทำรายการ 23/09/2569 - 17;22'),{date:'2569-09-23',time:'17:22'});
+ assert.deepEqual(parseDateLine('23-09-2026 7.05'),{date:'2026-09-23',time:'07:05'});
+});
 test('Paotang records net paid and preserves subsidy separately',()=>{
  const s=parseSlipText('เป๋าตัง\n22 ก.ย. 2569 19:43\nค่าสินค้า/บริการ\n55 บาท\nสิทธิไทยช่วยไทยพลัส\n-33 บาท\nจำนวนเงินที่ชำระ\n22 บาท\nหมายเหตุ: ค่าอาหารเย็น');
  const d=normalizeSlip(s);assert.equal(d.amount_satang,2200);assert.equal(d.gross_satang,5500);assert.equal(d.subsidy_satang,3300);

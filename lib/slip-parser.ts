@@ -43,17 +43,28 @@ export function parseSlipText(raw:string):Slip {
 }
 
 export function parseDateLine(raw:string):{date:string|null,time:string|null} {
- const lines=raw.split('\n');
+ const normalized=raw.replace(/[๐-๙]/g,c=>String(c.charCodeAt(0)-0x0e50))
+  .replace(/[Oo]/g,'0').replace(/[Il|]/g,'1')
+  .replace(/(\d)\s*[*'’]\s*(\d)(?=\s*[ก-๙])/g,'$1$2');
+ const lines=normalized.split('\n');
  for(const original of lines){
-  const line=original.replace(/[ุู]/g,'');
-  const yearMatch=/(25\d{2}|20\d{2})/.exec(line);if(!yearMatch)continue;
-  const before=line.slice(0,yearMatch.index);const day=before.match(/^\s*(\d{1,2})(?!\d)/)?.[1];
+  const line=original.replace(/[ุู]/g,' ');
+  const numeric=line.match(/(?:^|\D)(\d{1,2})\s*[\/\-.]\s*(\d{1,2})\s*[\/\-.]\s*((?:25|20)?\d{2})(?!\d)/);
+  const clock=line.match(/(?:^|\D)([01]?\d|2[0-3])\s*[:.% ;]\s*([0-5]\d)(?!\d)/);
+  if(numeric){
+   let year=Number(numeric[3]);if(year<100)year+=year>=40?2500:2000;
+   return {date:`${year}-${numeric[2].padStart(2,'0')}-${numeric[1].padStart(2,'0')}`,time:clock?`${clock[1].padStart(2,'0')}:${clock[2]}`:null};
+  }
+  let yearMatch=/(25\d{2}|20\d{2})/.exec(line);
+  if(!yearMatch)yearMatch=[...line.matchAll(/(?<!\d)(\d{2})(?!\d)/g)].find(match=>Number(match[1])>=40)||null;
+  if(!yearMatch)continue;
+  let year=Number(yearMatch[1]);if(year<100)year+=year>=40?2500:2000;
+  const before=line.slice(0,yearMatch.index);const day=[...before.matchAll(/(?:^|\D)(\d{1,2})(?!\d)/g)].map(match=>match[1]).find(value=>Number(value)>=1&&Number(value)<=31);
   if(!day)continue;
   const monthPart=compact(before.replace(/[0-9]/g,'')).replace(/[^ก-๙]/g,'');
   const month=months.findIndex(m=>monthPart.endsWith(m));
   if(month<0)continue;
-  const after=line.slice(yearMatch.index+4);const clock=after.match(/(\d{1,2})\s*[:%]\s*(\d{2})/);
-  return {date:`${yearMatch[1]}-${String(month+1).padStart(2,'0')}-${day.padStart(2,'0')}`,time:clock?`${clock[1].padStart(2,'0')}:${clock[2]}`:null};
+  return {date:`${year}-${String(month+1).padStart(2,'0')}-${day.padStart(2,'0')}`,time:clock?`${clock[1].padStart(2,'0')}:${clock[2]}`:null};
  }
  return {date:null,time:null};
 }
