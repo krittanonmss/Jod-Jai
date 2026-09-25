@@ -1,236 +1,139 @@
 # Jod-Jai Backlog
 
-This backlog is ordered by practical priority. Start from P0 unless the user explicitly asks for a different task.
+เอกสารนี้เป็นสถานะล่าสุดหลัง release commit `1426802` เรียงงานที่ยังเหลือตามลำดับความสำคัญ
 
-## Current Working State
+## สถานะ Production
 
-- P0 summary Flex Messages and the P1 data-control flows are implemented locally.
-- Supabase migration `005_p1_data_controls.sql` is applied and database integration tests pass.
-- Local checks pass: `npm run typecheck`, `npm test`, `npm run build`, and `npm run test:db`.
-- Production deployment is READY and smoke/E2E tests pass. A real LINE visual check remains useful for final layout polish.
+- Production: https://jod-jai.vercel.app
+- LINE webhook, Supabase และ Vercel ทำงานปกติ
+- Supabase migration `005_p1_data_controls.sql` ถูกติดตั้งแล้ว
+- P0 และ P1 deploy ขึ้น production แล้ว
+- ผ่าน `typecheck`, unit/OCR tests, production build, database integration, E2E CSV export และ production smoke test
+- Retention production ถูกเรียกทดสอบสำเร็จแล้ว
+- GitHub `main` มี feature release commit `1426802` แล้ว
 
-Next restart checklist:
+## งานที่เสร็จแล้ว
 
-1. Check `ดูรายรับรายจ่าย`, `สรุปวันนี้`, `สรุปเดือนนี้`, and the P1 buttons in real LINE.
-2. Adjust spacing/copy only if the real LINE rendering needs polish.
+### P0 — สรุปข้อมูลให้อ่านง่าย
 
-## Done
+- `ดูรายรับรายจ่าย`, `สรุปวันนี้` และ `สรุปเดือนนี้` แสดงด้วย LINE Flex Message
+- แสดงยอดรวม จำนวนรายการ หมวดหมู่ รายการล่าสุด และรายการรอยืนยันตามหน้าที่ของแต่ละการ์ด
+- มี `altText`, empty state และปุ่มลัด `เพิ่มรายการ`, `รายการค้าง`, `สรุปเดือนนี้`
+- ข้อมูลจำนวนเงินจัดแนวให้อ่านเปรียบเทียบง่ายบนมือถือ
 
-- Project scaffold, LINE webhook, Supabase schema, Vercel deploy, durable queue, owner pairing, OCR pipeline, duplicate slip protection, and Rich Menu are implemented.
-- README has been updated with the public site link, privacy notes, rough costs, and sharing guidance.
-- Rich Menu is live as the default LINE menu.
-- `BACKLOG.md` is now the source of truth for follow-up work and priority.
-- P0 Flex summaries are implemented for overview, today, and this month.
-- P1 direct-answer/quick-action UX, latest-record edit/delete, user history deletion, CSV export, and configurable six-month retention are implemented.
+### P1 — ลดการพิมพ์ `#<short_code>`
 
-## Needs Re-Check / Polish
+- เมื่อมีรายการร่างเดียว ผู้ใช้ตอบยอด วันเวลา หรือรายละเอียดได้โดยไม่ต้องใส่รหัส
+- หมวดหมู่และช่องที่ต้องการแก้ไขเลือกผ่าน Quick Reply ได้
+- `#<short_code>` ยังใช้ได้เมื่อมีหลายรายการร่างพร้อมกัน
+- เพิ่ม `รายการล่าสุด`, `แก้รายการล่าสุด` และ `ลบรายการล่าสุด`
+- รายการที่ยืนยันแล้วสามารถเปิดกลับมาแก้ไข หรือกดยืนยันก่อนลบได้
+- ย่อข้อความช่วยเหลือและข้อความถามข้อมูลให้กระชับขึ้น
 
-- LINE Official Account auto-response may still need to be disabled manually in LINE OA Manager if it appears again.
-- P0 Flex Message visual quality still needs a real LINE screenshot check; passing JSON/tests is not enough to judge layout.
-- Help text and pending draft text still look dense and are covered by P1.
-- OCR Thai accuracy remains imperfect and is intentionally P2 because confirmation prevents silent bad saves.
+### P1 — ล้างประวัติผู้ใช้
 
-## Things To Add Later
+- เพิ่มคำสั่ง `ล้างประวัติ` พร้อมหน้ากดยืนยันก่อนลบ
+- ลบเฉพาะรายการ คิว ประวัติ mutation และ export token ของผู้สั่ง
+- ไม่ลบ owner pairing หรือสิทธิ์เข้าใช้งาน
+- มี integration test ป้องกันการลบข้อมูลข้ามผู้ใช้
 
-- Real web dashboard is intentionally postponed. Keep current scope to better LINE cards first.
-- Export should ship before automatic retention is enabled.
-- System status/quota visibility should ship before broad friend-sharing.
+### P1 — ส่งออกข้อมูล
 
-## P0: Make LINE Summaries Readable — Implemented, Needs Visual Check
+- เพิ่มคำสั่ง `ส่งออกข้อมูล`
+- ส่งออกรายการที่ยืนยันแล้วทั้งหมดเป็น UTF-8 CSV สำหรับ Excel/Google Sheets
+- มีวันเวลา จำนวนเงิน หมวดหมู่ รายละเอียด ผู้รับ provider เลขอ้างอิง และเวลาสร้าง/ยืนยัน
+- ดาวน์โหลดผ่าน token แบบสุ่มที่เก็บเฉพาะ hash และหมดอายุใน 10 นาที
+- ป้องกัน CSV formula injection และไม่ cache ไฟล์
 
-Why now:
+### P1 — ลบข้อมูลเก่าอัตโนมัติ
 
-- `ดูรายรับรายจ่าย`, `สรุปวันนี้`, and `สรุปเดือนนี้` currently reply as plain text.
-- The information is correct, but it is hard to scan in LINE.
-- Improving these views gives the biggest UX win without changing core data flow.
+- งาน maintenance รันทุกวันผ่าน Vercel Cron
+- ลบรายการและ operational logs ที่เก่ากว่าค่า `RETENTION_MONTHS`
+- ค่าเริ่มต้นคือ 6 เดือน และปรับได้ 1–120 เดือน
+- ไม่ลบ owner pairing
+- cleanup เรียกซ้ำได้ และมี test ว่าข้อมูลใหม่ยังอยู่
 
-Scope:
+### ระบบพื้นฐานที่เสร็จแล้ว
 
-- Replace plain text responses for `ดูรายรับรายจ่าย`, `สรุปวันนี้`, and `สรุปเดือนนี้` with LINE Flex Messages.
-- Keep text fallback through `altText`.
-- Keep messages compact and mobile-first.
+- LINE webhook พร้อมตรวจ signature และ durable queue
+- Owner pairing และการแยกข้อมูลตาม LINE user ID
+- OCR ภายในระบบสำหรับเป๋าตัง, MAKE, Bangkok Bank และ SCB
+- อ่าน note จากสลิปเป็นรายละเอียดเบื้องต้น
+- ให้ผู้ใช้ตรวจและยืนยันก่อนบันทึกทุกครั้ง
+- ป้องกันสลิปซ้ำด้วย image hash, QR hash และเลขอ้างอิง
+- Rich Menu ใช้งานเป็นเมนูเริ่มต้นแล้ว
+- ไม่เก็บไฟล์รูปสลิปในฐานข้อมูลหรือ storage
 
-Suggested first version:
+## งานตรวจหน้าตาและเก็บรายละเอียด
 
-- `ดูรายรับรายจ่าย`: dashboard card with month total, pending draft count, and latest 5 confirmed expenses.
-- `สรุปวันนี้`: card with today's total, record count, category rows, and latest 3 records.
-- `สรุปเดือนนี้`: card with monthly total, category ranking, average per day, and latest 5 records.
-- Add quick actions where useful: `เพิ่มรายการ`, `รายการค้าง`, `สรุปเดือนนี้`.
+### P1 — ตรวจ Flex Message บน LINE จริง
 
-Acceptance criteria:
+- ทดลอง `ดูรายรับรายจ่าย`, `สรุปวันนี้` และ `สรุปเดือนนี้` บนมือถือจริง
+- ตรวจข้อความยาว จำนวนเงินหลักใหญ่ และ empty state ว่าไม่ล้นการ์ด
+- ทดลองปุ่มแก้ไข ลบ ส่งออก และล้างประวัติใน LINE จริง
+- ปรับ spacing/copy หากภาพจาก LINE จริงยังอ่านยาก
 
-- No long plain-text summary blocks for the three commands.
-- Amounts are aligned and easy to compare.
-- Empty states are short and clear.
-- Existing tests pass, and message JSON stays within LINE Flex limits.
+### P1 — ตรวจการตั้งค่า LINE OA
 
-## P1: Reduce Manual `#<short_code>` Typing — Implemented
+- หากข้อความ auto-response แบบ “บัญชีนี้ไม่สามารถตอบข้อความได้” กลับมาอีก ให้ปิดใน LINE OA Manager
+- จุดนี้เป็นการตั้งค่าบน OA ไม่ใช่ปัญหาใน webhook backend
 
-Why next:
+## งานถัดไป
 
-- The current flow works, but asking users to type `#<short_code> ...` feels technical and slow.
-- This becomes painful when correcting OCR fields or confirming multiple slips.
+### P2 — ปรับความแม่น OCR ภาษาไทย
 
-Scope:
+- เพิ่มสลิปตัวอย่างหลายสภาพของ provider ทั้ง 4 แบบ พร้อม expected fields ใน regression tests
+- ปรับ preprocessing เช่น crop, upscale, contrast, threshold และ deskew
+- เพิ่มกฎแก้ตัวอักษรไทยที่ OCR สับสนจากกรณีจริง
+- ใช้ตำแหน่ง field ของ layout ที่รู้จักร่วมกับ regex
+- เก็บ OCR/vision provider ภายนอกเป็นทางเลือกเมื่อ local OCR ยังไม่พอ
 
-- Use quick reply buttons for common categories and edit fields.
-- When there is exactly one pending draft, let the user answer directly without a `#<short_code>` prefix.
-- Add cleaner postback buttons for missing fields such as amount, description, category, confirm, and cancel.
-- Add a `รายการล่าสุด` / `แก้รายการล่าสุด` style flow so users do not need to remember codes.
-- Add edit/delete flows for already confirmed records, especially `แก้รายการล่าสุด` and `ลบรายการล่าสุด`, with confirmation before destructive changes.
-- Shorten dense help/error messages and keep examples concrete.
+เกณฑ์เสร็จ:
 
-Acceptance criteria:
+- มี regression test ครอบคลุมข้อผิดพลาด OCR ที่พบจริง
+- สลิปตัวอย่างเดิมทั้ง 4 แบบยังผ่าน
+- ยังต้องให้ผู้ใช้ยืนยันก่อนบันทึก
 
-- A normal single-slip flow can finish with little or no manual code typing.
-- Multi-slip ambiguity still has a clear path.
-- Old `#<short_code>` commands continue to work as a fallback.
-- Confirmed records can be corrected or deleted without direct database access.
+### P2 — จำร้านค้าและหมวดหมู่ของผู้ใช้
 
-## P1: Add User Data Deletion Command — Implemented
+- แนะนำหมวดและรายละเอียดจากประวัติที่ผู้ใช้เคยยืนยัน
+- เริ่มจาก merchant/recipient ที่ normalize แล้วตรงกัน ก่อนใช้ fuzzy matching
+- แยก pattern ตาม LINE user ID และไม่เรียนรู้ข้ามผู้ใช้
+- ข้อมูลที่ผู้ใช้พิมพ์เองต้องมีสิทธิ์เหนือคำแนะนำเสมอ
 
-Why next:
+เกณฑ์เสร็จ:
 
-- Users should be able to clear their own history from LINE.
-- Manual database deletion is possible today, but it is not friendly or safe enough for regular use.
+- ร้านเดิมได้คำแนะนำดีขึ้น
+- ผู้ใช้แก้คำแนะนำก่อนยืนยันได้
+- pattern ของผู้ใช้หนึ่งไม่กระทบอีกคน
 
-Scope:
+### P2 — สถานะระบบและโควตาสำหรับเจ้าของ
 
-- Add a `ล้างประวัติ` command in LINE.
-- Require explicit confirmation before deleting anything, through a confirmation button or `ยืนยันล้างประวัติ`.
-- Delete only the requesting user's data by default: drafts/confirmed records, queued events, stored responses, and mutation replay records.
-- Keep owner pairing / authorization unless the user explicitly asks to reset the account owner.
-- Reply with a clear summary after deletion, including what was deleted and what was kept.
+- เพิ่มคำสั่ง `สถานะระบบ` สำหรับเจ้าของเท่านั้น
+- แสดงคิวค้าง งาน dead, OCR failure, LINE push error และเวลาที่ cleanup ล่าสุด
+- แสดง usage ฐานข้อมูลและโควตา LINE เท่าที่ API รองรับ
+- ทำข้อความให้สั้นพออ่านใน LINE
 
-Acceptance criteria:
+เกณฑ์เสร็จ:
 
-- One user's delete command cannot delete another user's records.
-- Deletion is idempotent and safe to retry.
-- Accidental one-message deletion is not possible.
+- เจ้าของตรวจสุขภาพระบบจาก LINE ได้
+- ผู้ใช้ทั่วไปเปิดดูข้อมูลระบบไม่ได้
 
-## P1: Export User Data — Implemented
+### P3 — แชร์ให้เพื่อนใช้งาน
 
-Why next:
+- ให้เจ้าของสร้าง invite code ผ่าน LINE
+- เพิ่มคำสั่งดูผู้ใช้และถอนสิทธิ์
+- เพิ่ม rate limit และ quota safeguard ก่อนเปิดหลายผู้ใช้
+- ข้อมูลยังต้องแยกตาม LINE user ID
 
-- Retention will eventually delete old records, so users need a way to keep their own copy first.
-- Export also makes the system more trustworthy because data is not trapped in the bot.
+เกณฑ์เสร็จ:
 
-Scope:
+- เชิญและถอนผู้ใช้ได้โดยไม่แก้ environment variable
+- ผู้ใช้ดู ส่งออก แก้ หรือลบข้อมูลของกันและกันไม่ได้
+- เจ้าของติดตาม usage ได้ก่อนขยายจำนวนผู้ใช้
 
-- Add a `ส่งออกข้อมูล` command.
-- Export at least confirmed records from the latest 6 months as CSV.
-- Include practical columns: occurred date, amount, category, description, recipient, provider, reference, created/confirmed time.
-- Consider exporting all available history before automatic retention is enabled.
-- Keep the export private to the requesting LINE user.
+## งานที่ยังไม่ทำในตอนนี้
 
-Acceptance criteria:
-
-- A user can request and receive their own expense data without admin access.
-- Export contains enough fields to open in spreadsheet software.
-- Users cannot export another user's records.
-- Export is available before automatic retention is enabled.
-
-## P1: Automatic 6-Month Data Retention — Implemented
-
-Why next:
-
-- Old records currently stay in the database forever unless deleted manually.
-- A personal expense tracker usually only needs recent history, and retention helps keep Supabase usage small.
-- Export should exist before this is enabled so users can keep old records if they want.
-
-Scope:
-
-- Add an automatic retention job that deletes user history older than 6 months.
-- Apply retention to confirmed/cancelled/draft records, completed event logs, and mutation replay records.
-- Keep owner pairing / authorization data so the account remains usable after old records are removed.
-- Make the retention window configurable with an environment variable, defaulting to 6 months.
-- Run cleanup through Supabase cron or the existing worker pattern, and make it idempotent.
-
-Acceptance criteria:
-
-- Cleanup can run repeatedly without breaking current data.
-- The retention window is configurable.
-- Recent records are preserved; records older than the window are removed.
-- Tests cover boundary dates and cross-user safety.
-
-## P2: Improve Thai OCR Accuracy
-
-Why later:
-
-- OCR quality matters, but every saved record already requires user confirmation.
-- UX improvements reduce the pain of correcting OCR mistakes while OCR work continues.
-
-Scope:
-
-- Add more real slip examples for each supported provider and keep expected parsed fields in tests.
-- Improve image preprocessing before Tesseract: crop likely receipt area, upscale, contrast, threshold, and deskew.
-- Tune parser rules for common Thai OCR confusions seen in actual slips.
-- Prefer structured fields from known slip layout positions where possible, not only full-text regex.
-- Consider an optional OCR/vision provider later only if local OCR cannot reach acceptable accuracy.
-
-Acceptance criteria:
-
-- Regression tests cover known OCR mistakes.
-- Existing four supported slip formats keep passing.
-- Any OCR/vision provider remains optional and does not replace confirmation before saving.
-
-## P2: Remember Merchant and Category Patterns
-
-Why later:
-
-- Many expenses repeat at the same merchants or with similar notes.
-- The bot can become easier to use without AI by learning simple user-specific patterns.
-
-Scope:
-
-- Infer category and possibly description from the user's own confirmed history.
-- Prefer exact or normalized merchant/recipient matches before fuzzy matching.
-- Keep learned suggestions editable and always confirm before saving.
-- Avoid global learning across users; patterns should be per LINE user ID.
-
-Acceptance criteria:
-
-- Repeated merchants get better category suggestions over time.
-- Suggestions never overwrite explicit user input.
-- One user's patterns never affect another user.
-
-## P2: Owner System Status and Quota Checks
-
-Why later:
-
-- The bot depends on LINE, Vercel, Supabase, OCR, and the durable queue.
-- If it is shared with friends, the owner needs a simple way to see whether the system is healthy.
-
-Scope:
-
-- Add an owner-only `สถานะระบบ` command.
-- Show recent dead jobs, pending queue count, last cleanup time, and database usage where available.
-- Add checks for OCR failures and LINE push errors.
-- Consider LINE message quota checks if the API/account exposes enough information.
-
-Acceptance criteria:
-
-- Owner can inspect health from LINE without opening Supabase/Vercel dashboards.
-- Non-owners cannot view system or quota details.
-- Health output is short enough to read in LINE.
-
-## P3: Sharing With Friends
-
-Why later:
-
-- The current system is intentionally owner-only/private.
-- Sharing should wait until UX, deletion, and retention are safer.
-
-Scope:
-
-- Add invite codes created by the owner from LINE.
-- Add user list and revoke commands.
-- Keep records separated by LINE user ID.
-- Add quota/rate-limit safeguards before public use.
-- Require enough system status/quota visibility before inviting many people.
-
-Acceptance criteria:
-
-- Owner can invite and revoke users without editing environment variables.
-- Users cannot see or delete each other's records.
-- Usage can be monitored before inviting many people.
+- Web dashboard แบบเต็มยังเลื่อนไว้ก่อน เพราะการใช้งานหลักอยู่ใน LINE
+- ระบบรายรับจริงยังไม่เปิดใช้ ปัจจุบันบันทึกและสรุปเฉพาะรายจ่าย
+- AI/OCR API แบบเสียเงินยังไม่จำเป็น เพราะระบบใช้ local OCR และมีขั้นยืนยันข้อมูล
