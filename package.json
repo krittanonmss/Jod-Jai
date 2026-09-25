@@ -12,6 +12,7 @@
     "db:migrate": "node scripts/manage.mjs migrate",
     "deploy": "node scripts/manage.mjs deploy",
     "test:db": "node scripts/manage.mjs dbtest",
+    "repair:responses": "node --import tsx scripts/repair-responses.ts",
     "richmenu:build": "node scripts/rich-menu.mjs build",
     "richmenu:apply": "node scripts/rich-menu.mjs apply"
   },

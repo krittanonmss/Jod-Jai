@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {createHmac} from 'node:crypto';
 import {satang,thaiDate,normalizeSlip,normalizeMerchant,parseAnswer,missingField,Draft,parsePendingSelection} from '../lib/domain';
 import {parseSlipText,parseDateLine,cleanRecipient} from '../lib/slip-parser';
-import {validSignature} from '../lib/line';
+import {validSignature,fallbackMessages} from '../lib/line';
 import {review,summaryCard,overviewCard,clearHistoryConfirm,deleteRecordConfirm,exportCard,managementMenu,moreMenu,personalDataMenu} from '../lib/messages';
 import {allowedUser} from '../lib/config';
 test('money uses integer satang, rejects negatives and ambiguous decimals',()=>{
@@ -51,6 +51,10 @@ test('does not infer purpose from merchant or invent an unreadable amount',()=>{
 test('LINE signature checks exact raw body and rejects missing/altered signatures',()=>{
  const raw='{"events":[]}';const signature=createHmac('sha256','secret').update(raw).digest('base64');
  assert.ok(validSignature(raw,signature,'secret'));assert.equal(validSignature(raw+' ',signature,'secret'),false);assert.equal(validSignature(raw,'','secret'),false);
+});
+test('invalid Flex can fall back to its persisted user-visible summary',()=>{
+ assert.deepEqual(fallbackMessages([{type:'flex',altText:'บันทึกแล้ว 96.00 บาท'}]),[{type:'text',text:'บันทึกแล้ว 96.00 บาท'}]);
+ assert.deepEqual(fallbackMessages([{type:'image',originalContentUrl:'x'}]),[{type:'text',text:'บันทึกผลการทำรายการแล้ว แต่แสดงรายละเอียดไม่สำเร็จ กรุณาลองเปิดรายการล่าสุดอีกครั้งครับ'}]);
 });
 test('no configured LINE owner denies access',()=>{
  const original=process.env.LINE_ALLOWED_USER_IDS;process.env.LINE_ALLOWED_USER_IDS='';assert.equal(allowedUser('U1'),false);

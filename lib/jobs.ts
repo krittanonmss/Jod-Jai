@@ -1,10 +1,24 @@
 import {db,assertDb} from './db';
 import {processEvent} from './bot';
-import {pushMessages,LineDeliveryError,LineEvent,Message} from './line';
+import {pushMessages,fallbackMessages,LineDeliveryError,LineEvent,Message} from './line';
 import {isAuthorizedUser} from './access';
 import {text} from './messages';
 
-type EventJob={id:string;user_id:string;lease_token:string;attempts:number;payload:LineEvent;response:Message[]|null;ack_status:string;ack_lease_token:string|null;};
+type EventJob={id:string;user_id:string;lease_token:string;attempts:number;payload:LineEvent;response:Message[]|null;ack_status:string;ack_lease_token:string|null;received_at?:string;};
+
+function elapsed(receivedAt:string|undefined){return receivedAt?Math.max(0,Date.now()-new Date(receivedAt).getTime()):null;}
+async function deliverResult(job:EventJob,messages:Message[]){
+ try{return await pushMessages(job.user_id,messages,`${job.id}:result`);}
+ catch(error){
+  if(!(error instanceof LineDeliveryError)||error.kind!=='invalid_payload')throw error;
+  const fallback=fallbackMessages(messages);
+  const saved=await db().from('jod_events').update({response_original:messages,response:fallback,renderer_version:'v1-fallback'}).eq('id',job.id).eq('lease_token',job.lease_token).select('id');assertDb(saved.error);
+  if(!saved.data?.length)throw error;
+  // LINE rejected the first content with 400, so this is a replacement, not a
+  // retry. It has its own stable key; unknown/timeout cases keep the old key.
+  await pushMessages(job.user_id,fallback,`${job.id}:result:fallback-v1`);
+ }
+}
 
 async function deliverAck(ack:EventJob){
  try{
@@ -25,6 +39,8 @@ export async function drainJobs(budgetMs=190000){
   const {data,error}=await db().rpc('jod_claim_job');assertDb(error);
   const job=data?.[0] as EventJob|undefined;if(!job)break;
   try {
+   const claimedAt=new Date().toISOString();
+   const claimUpdate=await db().from('jod_events').update({claimed_at:claimedAt}).eq('id',job.id).eq('lease_token',job.lease_token);assertDb(claimUpdate.error);
    const claimedAck=await db().rpc('jod_claim_ack',{p_event_id:job.id});assertDb(claimedAck.error);
    const jobAck=claimedAck.data?.[0] as EventJob|undefined;
    if(jobAck)await deliverAck(jobAck);
@@ -40,9 +56,9 @@ export async function drainJobs(budgetMs=190000){
    // A persisted response and stable LINE retry key prevent duplicate notifications after crashes.
    if(messages.length){
     const attempt=await db().from('jod_events').update({result_delivery_attempts:job.attempts}).eq('id',job.id).eq('lease_token',job.lease_token);assertDb(attempt.error);
-    await pushMessages(job.user_id,messages,`${job.id}:result`);
+    await deliverResult(job,messages);
    }
-   const done=await db().from('jod_events').update({status:'done',payload:{},lease_until:null,last_error:null,result_delivered_at:messages.length?new Date().toISOString():null}).eq('id',job.id).eq('lease_token',job.lease_token);assertDb(done.error);processed++;
+   const done=await db().from('jod_events').update({status:'done',payload:{},lease_until:null,last_error:null,result_delivered_at:messages.length?new Date().toISOString():null,timing_ms:{received_to_claim_ms:elapsed(job.received_at),claim_to_done_ms:Date.now()-new Date(claimedAt).getTime()}}).eq('id',job.id).eq('lease_token',job.lease_token);assertDb(done.error);processed++;
   }catch(error){
    const safeError=error instanceof LineDeliveryError?`${error.kind}: ${error.message}`.slice(0,160):error instanceof Error?error.message.slice(0,160):'Processing failed';
    // No images, tokens, raw OCR text or user message contents in logs.

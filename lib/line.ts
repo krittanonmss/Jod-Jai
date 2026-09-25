@@ -13,7 +13,9 @@ export class LineDeliveryError extends Error {
 }
 function lineError(status:number,detail:string,reply=false):LineDeliveryError{
  const lower=detail.toLowerCase();
- if(status===400)return new LineDeliveryError(reply?'expired_reply_token':'invalid_payload',`LINE ${reply?'reply':'push'} HTTP 400: ${detail}`);
+ if(status===400&&reply&&lower.includes('invalid reply token'))return new LineDeliveryError('expired_reply_token',`LINE reply HTTP 400: ${detail}`);
+ if(status===400&&lower.includes('authentication failed'))return new LineDeliveryError('auth_or_config',`LINE HTTP 400: ${detail}`);
+ if(status===400)return new LineDeliveryError('invalid_payload',`LINE ${reply?'reply':'push'} HTTP 400: ${detail}`);
  if(status===401||status===403)return new LineDeliveryError('auth_or_config',`LINE HTTP ${status}: ${detail}`);
  if(status===429)return new LineDeliveryError('rate_or_quota',`LINE HTTP 429: ${detail}`);
  return new LineDeliveryError('remote_failure',`LINE HTTP ${status}: ${detail||lower}`);
@@ -31,6 +33,14 @@ export function validSignature(raw: string, signature: string, secret: string): 
 function retryUuid(key:string):string {
  const hex=createHash('sha256').update(key).digest('hex').slice(0,32);
  return `${hex.slice(0,8)}-${hex.slice(8,12)}-4${hex.slice(13,16)}-${(8+Number.parseInt(hex[16],16)%4).toString(16)}${hex.slice(17,20)}-${hex.slice(20)}`;
+}
+export function fallbackMessages(messages:Message[]):Message[]{
+ const result:Message[]=[];
+ for(const message of messages){
+  if(message.type==='text'&&typeof message.text==='string')result.push(message);
+  else if(message.type==='flex'&&typeof message.altText==='string')result.push({type:'text',text:message.altText});
+ }
+ return result.length?result:[{type:'text',text:'บันทึกผลการทำรายการแล้ว แต่แสดงรายละเอียดไม่สำเร็จ กรุณาลองเปิดรายการล่าสุดอีกครั้งครับ'}];
 }
 export async function pushMessages(to: string, messages: Message[], retryKey: string) {
  let response:Response;
