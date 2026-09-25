@@ -21,14 +21,14 @@ This is the release traceability matrix for the expense-first release. The detai
 | SCOPE-03 | 0 | Zero-cost constraint | No paid dependency selected; capacity measured before release | D03/D04 approved; capacity audit pending | PENDING |
 | SCOPE-04 | 0 | Required fields | Amount, Bangkok timestamp, recipient only; no required description | D03 approved; app/SQL still require description | BASELINE FAILURE |
 | SCOPE-05 | 0 | Deletion policy | Explicit delete confirmation; no user restore flow after implementation | D05 approved; current recovery remains | BASELINE GAP |
-| EVT-01 | 1 | Duplicate webhook | Exactly one business effect | Existing DB replay test covers a mutation, not full webhook | PENDING |
-| EVT-02 | 1 | Image then immediate answer | Answer binds to the correct newly-created draft | No direct test | PENDING |
-| EVT-03 | 1 | Queue acceptance failure | No durable-success acknowledgement before acceptance | Current image ack is sent before queue insert | BASELINE RISK |
+| EVT-01 | 1 | Duplicate webhook | Exactly one business effect | `jod_accept_event` regression: duplicate receipt is not reinserted and does not consume another rate allowance | PASS (DB) |
+| EVT-02 | 1 | Image then immediate answer | Answer binds to the correct newly-created draft | All authorized events now use the FIFO per-user queue; end-to-end event ordering test remains | PARTIAL |
+| EVT-03 | 1 | Queue acceptance failure | No durable-success acknowledgement before acceptance | Image acknowledgement is claimed only after atomic durable receipt; SQL regression verifies pending acknowledgement state | PASS (DB) |
 | EVT-04 | 1 | Commit then delivery failure | One saved expense after retry; no repeat mutation | Partial saved-response design exists; fault test missing | PENDING |
 | EVT-05 | 1 | Invalid Flex | Plain-text fallback without a new mutation | Flex incident fixed in a9b4444; fallback test missing | PENDING |
 | EVT-06 | 1 | Persisted invalid response | Targeted response regeneration works | One prior incident manually repaired | PENDING |
-| EVT-07 | 1 | Rate-limit boundary | Intentional Thai notice, duplicate delivery does not overcount | Rate RPC DB test exists; webhook behavior missing | PENDING |
-| EVT-08 | 1 | Expired job lease | Reclaim works and stale worker cannot finish newer lease | Existing DB test covers reclaim only | PARTIAL |
+| EVT-07 | 1 | Rate-limit boundary | Intentional Thai notice, duplicate delivery does not overcount | Atomic receipt/rate SQL regression covers first limit notice and duplicate non-consumption; remote delivery behavior remains to test | PARTIAL |
+| EVT-08 | 1 | Expired job lease | Reclaim works and stale worker cannot finish newer lease | Existing lease-reclaim regression plus lease-token conditional writes; acknowledgement reclaim added | PARTIAL |
 | EVT-09 | 1 | Reply timeout/unknown acceptance | Outcome recorded and no unsafe duplicate promise | No test | PENDING |
 | EVT-10 | 1/6 | Unauthorized/revoked user | No mutation or private disclosure | DB owner/member checks and smoke denied-user check | PARTIAL |
 | OCR-01 | 2 | MAKE amount/date/time/recipient | Exact values match visual ground truth | 5 private candidates; values not all ground-truthed | PENDING |

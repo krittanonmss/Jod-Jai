@@ -91,7 +91,7 @@ async function cron(){
  end $$;
  select cron.schedule('jod-jai-retry','* * * * *',$job$
  select net.http_post(url:=${quote(endpoint)},headers:=jsonb_build_object('Content-Type','application/json','Authorization','Bearer '||(select decrypted_secret from vault.decrypted_secrets where name='jod_jai_worker_secret')),body:='{}'::jsonb,timeout_milliseconds:=1000)
- where exists(select 1 from public.jod_events where (status='pending' and available_at<=now()) or (status='processing' and lease_until<now()));
+ where exists(select 1 from public.jod_events where (status='pending' and available_at<=now()) or (status='processing' and lease_until<now()) or ack_status='pending' or (ack_status='processing' and ack_lease_until<now()));
  $job$);`);
  console.log('Durable retry scheduler configured for '+endpoint);
 }

@@ -329,7 +329,7 @@ These describe document progress, not tool-level goal status.
 
 Initial tracker:
   Phase 0: DONE (baseline and design decisions recorded 2026-09-26)
-  Phase 1: NOT_STARTED
+  Phase 1: IN_PROGRESS (durable receipt, ordered queue, and delivery recovery deployed 2026-09-26)
   Phase 2: NOT_STARTED
   Phase 3: NOT_STARTED
   Phase 4: NOT_STARTED
@@ -452,7 +452,7 @@ Files: webhook route, lib/jobs.ts, lib/line.ts, lib/access.ts, worker route,
 queue/access migrations, tests, scripts/validate-line.ts.
 Output: Durable, replay-safe processing with intentional responses.
 
-[ ] P1.1 Unify durable acceptance and ordering.
+[x] P1.1 Unify durable acceptance and ordering.
     Deduplicate by event ID before repeating business effects.
     Persist image acceptance before claiming it has been accepted.
     Apply a common per-user policy to queued images and inline mutations.
@@ -460,7 +460,7 @@ Output: Durable, replay-safe processing with intentional responses.
     Allow read-only fast paths only when their data semantics remain correct.
     Record deterministic event ordering rather than relying on HTTP scheduling.
 
-[ ] P1.2 Separate acceptance, business completion, and delivery.
+[x] P1.2 Separate acceptance, business completion, and delivery.
     Reuse/extend jod_events and jod_mutations with additive migrations as needed.
     Persist recoverable business results before outbound delivery.
     If ack/result use separate delivery slots, their stable retry keys must differ.
@@ -486,7 +486,7 @@ Output: Durable, replay-safe processing with intentional responses.
     record any replacement attempt; do not assume arbitrary key reuse is safe.
     Never clear the entire queue to repair one card.
 
-[ ] P1.5 Make rate limiting visible and replay-aware.
+[x] P1.5 Make rate limiting visible and replay-aware.
     Recommended: duplicate delivery of one logical event consumes allowance once.
     Send a brief bounded Thai notice when the user is limited and transport permits.
     Throttle notices themselves and await/schedule delivery reliably.

@@ -1,6 +1,6 @@
 begin;
 do $$
-declare d uuid; confirmed_d uuid; other_d uuid; r jsonb; total bigint; claim public.jod_events;
+declare d uuid; confirmed_d uuid; other_d uuid; r jsonb; total bigint; claim public.jod_events; accepted jsonb;
 begin
  insert into public.jod_drafts(user_id,message_id,image_hash,provider,amount_satang,occurred_at,description,category,reference)
  values('__jod_test_owner__','__jod_test_message__','__jod_test_hash__','scb',200000,'2026-09-22T12:40:00Z','ทดสอบ','อื่น ๆ','__jod_ref__') returning id into d;
@@ -57,6 +57,20 @@ begin
  if public.jod_redeem_invite(repeat('a',64),'__jod_attacker__') then raise exception 'Invite reused';end if;
  if not exists(select 1 from public.jod_members where user_id='__jod_member__' and status='active') then raise exception 'Member not activated';end if;
  if not public.jod_is_authorized('__jod_member__') then raise exception 'Member authorization failed';end if;
+ insert into public.jod_members(user_id,invited_by,status) values('__phase1_member__','__jod_owner__','active');
+ select to_jsonb(x) into accepted from public.jod_accept_event('__phase1_image__','__phase1_member__',1,'{"message":{"type":"image"}}',false,2,60) x;
+ if not (accepted->>'inserted')::boolean or not (accepted->>'allowed')::boolean then raise exception 'Durable event acceptance failed';end if;
+ if not exists(select 1 from public.jod_events where id=(accepted->>'id')::uuid and ack_status='pending') then raise exception 'Image acknowledgement was not made durable';end if;
+ select to_jsonb(x) into r from public.jod_accept_event('__phase1_image__','__phase1_member__',1,'{"message":{"type":"image"}}',false,2,60) x;
+ if (r->>'inserted')::boolean then raise exception 'Duplicate webhook was accepted twice';end if;
+ if (select request_count from public.jod_rate_limits where user_id='__phase1_member__')<>1 then raise exception 'Duplicate webhook consumed rate allowance';end if;
+ select * into claim from public.jod_claim_ack((accepted->>'id')::uuid);
+ if claim.ack_status<>'processing' then raise exception 'Durable acknowledgement could not be claimed';end if;
+ select to_jsonb(x) into r from public.jod_accept_event('__phase1_second__','__phase1_member__',2,'{"message":{"type":"text"}}',false,2,60) x;
+ if not (r->>'allowed')::boolean then raise exception 'Rate limit rejected early';end if;
+ select to_jsonb(x) into r from public.jod_accept_event('__phase1_limited__','__phase1_member__',3,'{"message":{"type":"text"}}',false,2,60) x;
+ if (r->>'allowed')::boolean or not exists(select 1 from public.jod_events where id=(r->>'id')::uuid and response is not null) then raise exception 'Rate-limited event did not retain a durable response';end if;
+ update public.jod_events set status='done',lease_until=null where event_id like '__phase1_%';
  r:=public.jod_authorize_and_rate('__jod_rate_attacker__',2,60);
  if (r->>'authorized')::boolean or exists(select 1 from public.jod_rate_limits where user_id='__jod_rate_attacker__') then raise exception 'Unauthorized user consumed rate limit';end if;
  r:=public.jod_authorize_and_rate('__jod_member__',2,60);
