@@ -44,6 +44,9 @@ export function inferCategory(description: string): string {
   if (/เสื้อ|รองเท้า|ซื้อของ/.test(description)) return 'ซื้อของ';
   return 'อื่น ๆ';
 }
+export function normalizeMerchant(value:string):string {
+ return value.normalize('NFKC').toLowerCase().replace(/[^a-z0-9ก-๙]/g,'').replace(/(บริษัท|บจก|จ[ำํ]ากัด|ร้าน)/g,'');
+}
 export function normalizeSlip(slip: Slip) {
   const description = slip.note?.trim() || null;
   return {

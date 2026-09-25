@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createHmac} from 'node:crypto';
-import {satang,thaiDate,normalizeSlip,parseAnswer,missingField,Draft,parsePendingSelection} from '../lib/domain';
+import {satang,thaiDate,normalizeSlip,normalizeMerchant,parseAnswer,missingField,Draft,parsePendingSelection} from '../lib/domain';
 import {parseSlipText,parseDateLine} from '../lib/slip-parser';
 import {validSignature} from '../lib/line';
 import {review,summaryCard,overviewCard,clearHistoryConfirm,deleteRecordConfirm,exportCard,managementMenu,personalDataMenu} from '../lib/messages';
@@ -23,6 +23,10 @@ test('Paotang records net paid and preserves subsidy separately',()=>{
  const s=parseSlipText('เป๋าตัง\n22 ก.ย. 2569 19:43\nค่าสินค้า/บริการ\n55 บาท\nสิทธิไทยช่วยไทยพลัส\n-33 บาท\nจำนวนเงินที่ชำระ\n22 บาท\nหมายเหตุ: ค่าอาหารเย็น');
  const d=normalizeSlip(s);assert.equal(d.amount_satang,2200);assert.equal(d.gross_satang,5500);assert.equal(d.subsidy_satang,3300);
  assert.equal(d.description,'ค่าอาหารเย็น');assert.equal(d.category,'อาหาร');
+});
+test('common Thai OCR combining-mark errors are normalized',()=>{
+ const s=parseSlipText('เป๋าตัง\n22 ก.ย. 2569 19:43\nจานวนเงินที่ชาระ\n22 บาท\nบันทึกช่วยจา: ค่าอาหาร');
+ assert.equal(s.amount,'22');assert.equal(s.note,'ค่าอาหาร');
 });
 test('does not infer purpose from merchant or invent an unreadable amount',()=>{
  const d=normalizeSlip(parseSlipText('Bangkok Bank\nCOUNTER SERVICE\nเลขที่อ้างอิง 2026092317223024002815108'));
@@ -69,6 +73,9 @@ test('pending drafts can be selected with simple running numbers',()=>{
  assert.deepEqual(parsePendingSelection('รายการ 2',3),{index:1,answer:undefined,cancel:false});
  assert.deepEqual(parsePendingSelection('ยกเลิก 3',3),{index:2,answer:undefined,cancel:true});
  assert.equal(parsePendingSelection('4 ค่าอาหาร',3),null);
+});
+test('merchant matching ignores common company and spacing noise',()=>{
+ assert.equal(normalizeMerchant('บริษัท ร้าน ABC จำกัด'),normalizeMerchant('abc'));
 });
 import {pairingMatches} from '../lib/access';
 test('owner pairing requires an exact high-entropy code and rejects empty configuration',()=>{

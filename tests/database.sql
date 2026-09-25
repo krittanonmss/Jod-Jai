@@ -51,7 +51,13 @@ begin
  if not exists(select 1 from public.jod_drafts where message_id='__jod_recent_message__') then raise exception 'Recent data deleted';end if;
  if has_table_privilege('anon','public.jod_drafts','SELECT') or has_table_privilege('authenticated','public.jod_drafts','SELECT') then raise exception 'Public table grant';end if;
  if has_function_privilege('anon','public.jod_change_draft(text,text,uuid,integer,text,jsonb)','EXECUTE') then raise exception 'Public mutation RPC';end if;
- if exists(select 1 from pg_class where relname in ('jod_drafts','jod_events','jod_mutations','jod_exports') and not relrowsecurity) then raise exception 'RLS disabled';end if;
+ if exists(select 1 from pg_class where relname in ('jod_drafts','jod_events','jod_mutations','jod_exports','jod_members','jod_invites','jod_rate_limits','jod_maintenance') and not relrowsecurity) then raise exception 'RLS disabled';end if;
+ insert into public.jod_invites(code_hash,created_by,expires_at) values(repeat('a',64),'__jod_owner__',now()+interval '1 hour');
+ if not public.jod_redeem_invite(repeat('a',64),'__jod_member__') then raise exception 'Invite redemption failed';end if;
+ if public.jod_redeem_invite(repeat('a',64),'__jod_attacker__') then raise exception 'Invite reused';end if;
+ if not exists(select 1 from public.jod_members where user_id='__jod_member__' and status='active') then raise exception 'Member not activated';end if;
+ if not public.jod_take_rate_limit('__jod_rate__',2,60) or not public.jod_take_rate_limit('__jod_rate__',2,60) then raise exception 'Rate limit rejected early';end if;
+ if public.jod_take_rate_limit('__jod_rate__',2,60) then raise exception 'Rate limit did not stop burst';end if;
  if not exists(select 1 from public.jod_owner) then
   if not public.jod_pair_owner('__pair_owner__') then raise exception 'Owner pairing failed';end if;
   if public.jod_pair_owner('__attacker__') then raise exception 'Owner pairing can be stolen';end if;

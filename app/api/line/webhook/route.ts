@@ -2,7 +2,7 @@ import {after} from 'next/server';
 import {z} from 'zod';
 import {validSignature} from '@/lib/line';
 import {required} from '@/lib/config';
-import {isAuthorizedUser,tryPairOwner} from '@/lib/access';
+import {isAuthorizedUser,takeRateLimit,tryJoinInvite,tryPairOwner} from '@/lib/access';
 import {db,assertDb} from '@/lib/db';
 import {drainJobs} from '@/lib/jobs';
 export const runtime='nodejs';
@@ -23,9 +23,11 @@ export async function POST(request:Request){
   for(const e of body.events){
    const user=e.source.userId;
    if(e.source.type!=='user'||!user||!['message','postback','follow'].includes(e.type))continue;
-   if(await isAuthorizedUser(user))events.push(e);
+   if(await isAuthorizedUser(user)){if(await takeRateLimit(user))events.push(e);}
    else if(e.type==='message' && e.message?.type==='text' && await tryPairOwner(user,e.message.text||'')){
     // Never persist the one-time pairing code in the job payload.
+    events.push({...e,type:'follow',message:undefined});
+   } else if(e.type==='message' && e.message?.type==='text' && await tryJoinInvite(user,e.message.text||'')){
     events.push({...e,type:'follow',message:undefined});
    }
   }

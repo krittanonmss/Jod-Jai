@@ -2,7 +2,8 @@ import type { Slip } from './domain';
 const months=['มค','กพ','มีค','เมย','พค','มิย','กค','สค','กย','ตค','พย','ธค'];
 const compact=(s:string)=>s.replace(/[\s.]/g,'');
 export function parseSlipText(raw:string):Slip {
- const cleaned=raw.replace(/[๐-๙]/g,c=>String(c.charCodeAt(0)-0x0e50));
+ const cleaned=raw.replace(/[๐-๙]/g,c=>String(c.charCodeAt(0)-0x0e50))
+  .replace(/จ[ํำา]นวน/g,'จำนวน').replace(/ช[ํำา]ระ/g,'ชำระ').replace(/บันทึกช่วยจ[ํำา]/g,'บันทึกช่วยจำ');
  const lines=cleaned.split('\n').map(s=>s.trim()).filter(Boolean);
  const all=lines.join('\n');
  const provider:Slip['provider']=/SCB/i.test(all)?'scb':/Bangkok\s*Bank/i.test(all)?'bbl':/make|KBank/i.test(all)?'make':/เป๋าตัง|G-Wallet|ถุงเงิน|สิทธิ.*ไทย|ไทยช่วยไทย/.test(all)?'paotang':'unsupported';

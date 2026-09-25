@@ -31,3 +31,13 @@ export async function getImage(messageId: string): Promise<Buffer> {
  while (true) { const {done,value}=await reader.read(); if(done)break; size+=value.length; if(size>limit){await reader.cancel();throw new Error('Image too large');} chunks.push(value); }
  return Buffer.concat(chunks);
 }
+export async function getMessageQuota():Promise<{usage:number;limit:string}>{
+ const headers={Authorization:`Bearer ${required('LINE_CHANNEL_ACCESS_TOKEN')}`};
+ const [quota,usage]=await Promise.all([
+  fetch('https://api.line.me/v2/bot/message/quota',{headers,signal:AbortSignal.timeout(10000)}),
+  fetch('https://api.line.me/v2/bot/message/quota/consumption',{headers,signal:AbortSignal.timeout(10000)}),
+ ]);
+ if(!quota.ok||!usage.ok)throw new Error('LINE quota unavailable');
+ const q=await quota.json() as {type:string;value?:number};const u=await usage.json() as {totalUsage:number};
+ return {usage:u.totalUsage,limit:q.type==='limited'?String(q.value):q.type};
+}

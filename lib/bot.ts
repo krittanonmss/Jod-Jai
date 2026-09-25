@@ -1,10 +1,11 @@
 import {createHash,randomBytes} from 'node:crypto';
 import {db,assertDb} from './db';
-import {Draft,normalizeSlip,missingField,parseAnswer,money,parsePendingSelection} from './domain';
-import {getImage,LineEvent,Message} from './line';
+import {Draft,normalizeSlip,missingField,parseAnswer,money,normalizeMerchant,parsePendingSelection} from './domain';
+import {getImage,getMessageQuota,LineEvent,Message} from './line';
 import {recognizeSlip} from './ocr';
 import {slipQrHash} from './qr';
 import {text,review,editMenu,help,summaryCard,overviewCard,latestMenu,deleteRecordConfirm,clearHistoryConfirm,exportCard,managementMenu,personalDataMenu} from './messages';
+import {isOwnerUser} from './access';
 
 type Change={code:string;draft?:Draft};
 function changeResponse(result:Change):Message[]{
@@ -27,6 +28,45 @@ async function pending(user:string):Promise<Draft[]>{
 async function latestConfirmed(user:string):Promise<Draft|null>{
  const {data,error}=await db().from('jod_drafts').select('*').eq('user_id',user).eq('status','confirmed').order('confirmed_at',{ascending:false}).limit(1).maybeSingle();
  assertDb(error);return data as Draft|null;
+}
+async function applyMerchantSuggestion(user:string,values:ReturnType<typeof normalizeSlip>){
+ if(values.description||!values.recipient)return values;
+ const previous=await db().from('jod_drafts').select('recipient,description,category').eq('user_id',user).eq('status','confirmed').not('recipient','is',null).not('description','is',null).order('confirmed_at',{ascending:false}).limit(200);assertDb(previous.error);
+ const key=normalizeMerchant(values.recipient);
+ const match=previous.data?.find(row=>normalizeMerchant(row.recipient||'')===key);
+ return match?{...values,description:match.description,category:match.category}:values;
+}
+async function systemStatus(user:string):Promise<Message[]> {
+ if(!await isOwnerUser(user))return [text('คำสั่งนี้ใช้ได้เฉพาะเจ้าของระบบครับ')];
+ const [pendingJobs,deadJobs,recentDead,pendingDrafts,members,maintenance,quota]=await Promise.all([
+  db().from('jod_events').select('id',{count:'exact',head:true}).in('status',['pending','processing']),
+  db().from('jod_events').select('id',{count:'exact',head:true}).eq('status','dead'),
+  db().from('jod_events').select('last_error').eq('status','dead').order('created_at',{ascending:false}).limit(1).maybeSingle(),
+  db().from('jod_drafts').select('id',{count:'exact',head:true}).eq('status','draft'),
+  db().from('jod_members').select('user_id',{count:'exact',head:true}).eq('status','active'),
+  db().from('jod_maintenance').select('last_cleanup_at').eq('singleton',true).maybeSingle(),
+  getMessageQuota().catch(()=>null),
+ ]);
+ for(const result of [pendingJobs,deadJobs,recentDead,pendingDrafts,members,maintenance])assertDb(result.error);
+ const cleaned=maintenance.data?.last_cleanup_at?new Intl.DateTimeFormat('th-TH',{timeZone:'Asia/Bangkok',dateStyle:'short',timeStyle:'short'}).format(new Date(maintenance.data.last_cleanup_at)):'ยังไม่เคย';
+ const lastError=recentDead.data?.last_error?`\nข้อผิดพลาดล่าสุด: ${String(recentDead.data.last_error).slice(0,80)}`:'';
+ return [text(`สถานะระบบ ✅\nคิวงาน: ${pendingJobs.count||0} ค้าง • ${deadJobs.count||0} ล้มเหลว\nรายการรอยืนยัน: ${pendingDrafts.count||0}\nสมาชิกที่เชิญ: ${members.count||0}\nล้างข้อมูลล่าสุด: ${cleaned}\nLINE เดือนนี้: ${quota?`${quota.usage} / ${quota.limit}`:'ตรวจไม่ได้'}${lastError}`)];
+}
+const inviteAlphabet='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+async function createInvite(user:string):Promise<Message[]> {
+ if(!await isOwnerUser(user))return [text('คำสั่งนี้ใช้ได้เฉพาะเจ้าของระบบครับ')];
+ const bytes=randomBytes(10);let code='';for(let i=0;i<10;i++)code+=inviteAlphabet[bytes[i]%inviteAlphabet.length];
+ const hash=createHash('sha256').update(code).digest('hex');
+ const saved=await db().from('jod_invites').insert({code_hash:hash,created_by:user,expires_at:new Date(Date.now()+24*3600_000).toISOString()});assertDb(saved.error);
+ return [text(`รหัสเชิญ: ${code}\n\nให้เพื่อนแอด OA แล้วพิมพ์\nเข้าร่วม ${code}\n\nใช้ได้ 1 ครั้ง ภายใน 24 ชั่วโมง`)];
+}
+async function memberCommand(user:string,input:string):Promise<Message[]> {
+ if(!await isOwnerUser(user))return [text('คำสั่งนี้ใช้ได้เฉพาะเจ้าของระบบครับ')];
+ const members=await db().from('jod_members').select('user_id,created_at').eq('status','active').order('created_at');assertDb(members.error);
+ const rows=members.data||[];const revoke=input.match(/^ถอนสิทธิ์\s+(\d{1,2})$/);
+ if(revoke){const index=Number(revoke[1])-1;if(!rows[index])return [text('ไม่พบหมายเลขผู้ใช้นี้ครับ')];const removed=await db().from('jod_members').update({status:'revoked',revoked_at:new Date().toISOString()}).eq('user_id',rows[index].user_id).eq('status','active');assertDb(removed.error);return [text(`ถอนสิทธิ์ผู้ใช้ ${index+1} แล้วครับ`)];}
+ if(!rows.length)return [text('ยังไม่มีสมาชิกที่เชิญเข้ามาครับ')];
+ return [text(`สมาชิก ${rows.length} คน\n${rows.map((row,index)=>`${index+1}. …${row.user_id.slice(-6)}`).join('\n')}\n\nถอนสิทธิ์ด้วย “ถอนสิทธิ์ 1”`)];
 }
 async function exportData(user:string):Promise<Message[]> {
  const countResult=await db().from('jod_drafts').select('id',{count:'exact',head:true}).eq('user_id',user).eq('status','confirmed');
@@ -108,7 +148,7 @@ export async function processEvent(event:LineEvent):Promise<Message[]>{
   }
   const result=await recognizeSlip(image);
   if(result.slip.provider==='unsupported')return [text('ยังระบุแบบสลิปไม่ได้ครับ รองรับเป๋าตัง, MAKE, Bangkok Bank และ SCB กรุณาส่งภาพเต็มที่ชัดเจน')];
-  const values=normalizeSlip(result.slip);
+  const values=await applyMerchantSuggestion(user,normalizeSlip(result.slip));
   if(values.amount_satang===0)values.amount_satang=null;
   const saved=await db().from('jod_drafts').insert({...values,user_id:user,message_id:event.message.id,image_hash:hash,qr_hash:qrHash}).select('*').single();
   if(saved.error?.code==='23505')return [text('พบสลิปหรือเลขอ้างอิงซ้ำ จึงไม่สร้างรายจ่ายซ้ำครับ พิมพ์ รายการค้าง เพื่อดูรายการเดิม')];
@@ -153,6 +193,9 @@ export async function processEvent(event:LineEvent):Promise<Message[]>{
   if(input==='สรุปเดือนนี้')return totals(user,true);
   if(input==='จัดการรายการ')return [managementMenu()];
   if(input==='ข้อมูลของฉัน')return [personalDataMenu()];
+  if(input==='สถานะระบบ')return systemStatus(user);
+  if(input==='เชิญเพื่อน')return createInvite(user);
+  if(input==='ผู้ใช้งาน'||input.startsWith('ถอนสิทธิ์ '))return memberCommand(user,input);
   if(['รายการล่าสุด','แก้รายการล่าสุด','ลบรายการล่าสุด'].includes(input)){
    const latest=await latestConfirmed(user);if(!latest)return [text('ยังไม่มีรายการที่บันทึกแล้วครับ')];
    if(input==='ลบรายการล่าสุด')return [deleteRecordConfirm(latest)];

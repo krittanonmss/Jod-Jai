@@ -1,4 +1,4 @@
-import {timingSafeEqual} from 'node:crypto';
+import {createHash,timingSafeEqual} from 'node:crypto';
 import {allowedUser} from './config';
 import {db,assertDb} from './db';
 export function pairingMatches(input:string,code:string):boolean{
@@ -7,11 +7,28 @@ export function pairingMatches(input:string,code:string):boolean{
  return a.length===b.length && timingSafeEqual(a,b);
 }
 export async function isAuthorizedUser(user:string):Promise<boolean>{
- if(process.env.LINE_ALLOWED_USER_IDS?.trim())return allowedUser(user);
+ if(allowedUser(user))return true;
+ const member=await db().from('jod_members').select('user_id').eq('user_id',user).eq('status','active').maybeSingle();assertDb(member.error);
+ if(member.data)return true;
+ const {data,error}=await db().from('jod_owner').select('user_id').eq('singleton',true).maybeSingle();assertDb(error);
+ return data?.user_id===user;
+}
+export async function isOwnerUser(user:string):Promise<boolean>{
+ const configured=(process.env.LINE_ALLOWED_USER_IDS||'').split(',').map(value=>value.trim()).filter(Boolean);
+ if(configured[0]===user)return true;
  const {data,error}=await db().from('jod_owner').select('user_id').eq('singleton',true).maybeSingle();assertDb(error);
  return data?.user_id===user;
 }
 export async function tryPairOwner(user:string,message:string):Promise<boolean>{
  if(process.env.LINE_ALLOWED_USER_IDS?.trim() || !pairingMatches(message,process.env.LINE_PAIRING_CODE||''))return false;
  const {data,error}=await db().rpc('jod_pair_owner',{p_user:user});assertDb(error);return data===true;
+}
+export async function tryJoinInvite(user:string,message:string):Promise<boolean>{
+ const match=message.trim().toUpperCase().match(/^เข้าร่วม\s+([A-HJ-NP-Z2-9]{10})$/);
+ if(!match)return false;
+ const hash=createHash('sha256').update(match[1]).digest('hex');
+ const {data,error}=await db().rpc('jod_redeem_invite',{p_hash:hash,p_user:user});assertDb(error);return data===true;
+}
+export async function takeRateLimit(user:string):Promise<boolean>{
+ const {data,error}=await db().rpc('jod_take_rate_limit',{p_user:user,p_limit:30,p_seconds:60});assertDb(error);return data===true;
 }

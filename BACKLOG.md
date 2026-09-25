@@ -1,16 +1,16 @@
 # Jod-Jai Backlog
 
-เอกสารนี้เป็นสถานะล่าสุดหลัง release commit `1426802` เรียงงานที่ยังเหลือตามลำดับความสำคัญ
+เอกสารนี้เป็นสถานะล่าสุดของ production เรียงงานที่ยังเหลือตามลำดับความสำคัญ
 
 ## สถานะ Production
 
 - Production: https://jod-jai.vercel.app
 - LINE webhook, Supabase และ Vercel ทำงานปกติ
-- Supabase migration `005_p1_data_controls.sql` ถูกติดตั้งแล้ว
-- P0 และ P1 deploy ขึ้น production แล้ว
+- Supabase migrations ผ่าน `006_p2_p3_members_and_health.sql` ถูกติดตั้งแล้ว
+- P0, P1, P2 merchant/health และ P3 member sharing อยู่บน production แล้ว
 - ผ่าน `typecheck`, unit/OCR tests, production build, database integration, E2E CSV export และ production smoke test
 - Retention production ถูกเรียกทดสอบสำเร็จแล้ว
-- GitHub `main` มี feature release commit `1426802` แล้ว
+- Production smoke test ผ่านหลัง release P2/P3
 
 ## งานที่เสร็จแล้ว
 
@@ -80,7 +80,7 @@
 
 ## งานถัดไป
 
-### P2 — ปรับความแม่น OCR ภาษาไทย
+### P2 — ปรับความแม่น OCR ภาษาไทย — ทำพื้นฐานแล้ว/เก็บ regression เพิ่มต่อ
 
 - เพิ่มสลิปตัวอย่างหลายสภาพของ provider ทั้ง 4 แบบ พร้อม expected fields ใน regression tests
 - ปรับ preprocessing เช่น crop, upscale, contrast, threshold และ deskew
@@ -94,7 +94,9 @@
 - สลิปตัวอย่างเดิมทั้ง 4 แบบยังผ่าน
 - ยังต้องให้ผู้ใช้ยืนยันก่อนบันทึก
 
-### P2 — จำร้านค้าและหมวดหมู่ของผู้ใช้
+สถานะปัจจุบัน: มี crop ตาม layout, upscale, rotate, grayscale/normalize สำหรับ field, regression test สลิปจริงทั้ง 4 แบบ และ normalization สำหรับ `จำนวน`, `ชำระ`, `บันทึกช่วยจำ` ที่อ่านสระ/วรรณยุกต์ผิด งานที่เหลือคือสะสมภาพสภาพยากเพิ่มและปรับ deskew/threshold ตามหลักฐานจากภาพจริง
+
+### P2 — จำร้านค้าและหมวดหมู่ของผู้ใช้ — Implemented
 
 - แนะนำหมวดและรายละเอียดจากประวัติที่ผู้ใช้เคยยืนยัน
 - เริ่มจาก merchant/recipient ที่ normalize แล้วตรงกัน ก่อนใช้ fuzzy matching
@@ -107,7 +109,7 @@
 - ผู้ใช้แก้คำแนะนำก่อนยืนยันได้
 - pattern ของผู้ใช้หนึ่งไม่กระทบอีกคน
 
-### P2 — สถานะระบบและโควตาสำหรับเจ้าของ
+### P2 — สถานะระบบและโควตาสำหรับเจ้าของ — Implemented
 
 - เพิ่มคำสั่ง `สถานะระบบ` สำหรับเจ้าของเท่านั้น
 - แสดงคิวค้าง งาน dead, OCR failure, LINE push error และเวลาที่ cleanup ล่าสุด
@@ -119,7 +121,7 @@
 - เจ้าของตรวจสุขภาพระบบจาก LINE ได้
 - ผู้ใช้ทั่วไปเปิดดูข้อมูลระบบไม่ได้
 
-### P3 — แชร์ให้เพื่อนใช้งาน
+### P3 — แชร์ให้เพื่อนใช้งาน — Implemented
 
 - ให้เจ้าของสร้าง invite code ผ่าน LINE
 - เพิ่มคำสั่งดูผู้ใช้และถอนสิทธิ์
@@ -131,6 +133,8 @@
 - เชิญและถอนผู้ใช้ได้โดยไม่แก้ environment variable
 - ผู้ใช้ดู ส่งออก แก้ หรือลบข้อมูลของกันและกันไม่ได้
 - เจ้าของติดตาม usage ได้ก่อนขยายจำนวนผู้ใช้
+
+สถานะปัจจุบัน: invite code ใช้ครั้งเดียวและหมดอายุใน 24 ชั่วโมง, มีรายชื่อแบบปกปิด User ID, ถอนสิทธิ์ด้วยเลขลำดับ, แยกข้อมูลทุก query และจำกัด 30 webhook events ต่อผู้ใช้ต่อนาที
 
 ## งานที่ยังไม่ทำในตอนนี้
 
