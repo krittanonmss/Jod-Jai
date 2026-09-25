@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createHmac} from 'node:crypto';
 import {satang,thaiDate,normalizeSlip,normalizeMerchant,parseAnswer,missingField,Draft,parsePendingSelection} from '../lib/domain';
-import {parseSlipText,parseDateLine} from '../lib/slip-parser';
+import {parseSlipText,parseDateLine,cleanRecipient} from '../lib/slip-parser';
 import {validSignature} from '../lib/line';
 import {review,summaryCard,overviewCard,clearHistoryConfirm,deleteRecordConfirm,exportCard,managementMenu,moreMenu,personalDataMenu} from '../lib/messages';
 import {allowedUser} from '../lib/config';
@@ -23,6 +23,17 @@ test('date parsing tolerates labels, numeric dates, short Buddhist years and OCR
  assert.deepEqual(parseDateLine('วันที่ 23 ก.ย. 69 เวลา 17.22 น.'),{date:'2569-09-23',time:'17:22'});
  assert.deepEqual(parseDateLine('ทำรายการ 23/09/2569 - 17;22'),{date:'2569-09-23',time:'17:22'});
  assert.deepEqual(parseDateLine('23-09-2026 7.05'),{date:'2026-09-23',time:'07:05'});
+});
+test('compressed slip dates reject impossible months and tolerate observed September OCR',()=>{
+ assert.deepEqual(parseDateLine('25.0. 2569 19:59'),{date:null,time:null});
+ assert.deepEqual(parseDateLine('25 n.9. 2569 19:59'),{date:'2569-09-25',time:'19:59'});
+ assert.deepEqual(parseDateLine('01 ก.ุยข. 2569 - 21:19'),{date:'2569-09-01',time:'21:19'});
+});
+test('Bangkok Bank amount and recipient parsing ignore OCR suffixes and account IDs',()=>{
+ const slip=parseSlipText('Bangkok Bank\nจำนวนเงิน\n533.93าท๒ธ\nไปที่\nTRUEAPP\nService Code: TRUEAPP\nหมายเลขทำรายการ\n20260916093854930575');
+ assert.equal(slip.amount,'533.93');assert.equal(slip.recipient,'TRUEAPP');
+ assert.equal(cleanRecipient('ไปที่\nBiller ID: 010753600000000'),null);
+ assert.equal(cleanRecipient('ไปที่\nร้าน ABC\nxxx-xxx061'),'ร้าน ABC');
 });
 test('Paotang records net paid and preserves subsidy separately',()=>{
  const s=parseSlipText('เป๋าตัง\n22 ก.ย. 2569 19:43\nค่าสินค้า/บริการ\n55 บาท\nสิทธิไทยช่วยไทยพลัส\n-33 บาท\nจำนวนเงินที่ชำระ\n22 บาท\nหมายเหตุ: ค่าอาหารเย็น');
