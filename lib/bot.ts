@@ -4,7 +4,7 @@ import {Draft,normalizeSlip,missingField,parseAnswer,money,normalizeMerchant,par
 import {getImage,getMessageQuota,LineEvent,Message} from './line';
 import {recognizeSlip} from './ocr';
 import {slipQrHash} from './qr';
-import {text,review,editMenu,help,summaryCard,overviewCard,latestMenu,deleteRecordConfirm,clearHistoryConfirm,exportCard,managementMenu,personalDataMenu,pendingCarousel} from './messages';
+import {text,review,editMenu,help,summaryCard,overviewCard,latestMenu,deleteRecordConfirm,clearHistoryConfirm,exportCard,managementMenu,moreMenu,personalDataMenu,pendingCarousel} from './messages';
 import {isOwnerUser} from './access';
 
 type Change={code:string;draft?:Draft};
@@ -196,6 +196,7 @@ if(imageMessage){
   if(['ดูรายรับรายจ่าย','ดูรายการ','รายรับรายจ่าย'].includes(input))return overview(user);
   if(input==='สรุปวันนี้')return totals(user,false);
   if(input==='สรุปเดือนนี้')return totals(user,true);
+  if(input==='เมนูเพิ่มเติม')return [moreMenu()];
   if(input==='จัดการรายการ')return [managementMenu()];
   if(input==='ข้อมูลของฉัน')return [personalDataMenu()];
   if(input==='สถานะระบบ')return systemStatus(user);

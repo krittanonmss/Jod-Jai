@@ -186,6 +186,18 @@ export function managementMenu():Message {
     quickMessage('ยืนยันทั้งหมด'),quickMessage('ยกเลิกทั้งหมด'),
   ]}};
 }
+export function moreMenu():Message {
+ return {type:'flex',altText:'เมนูเพิ่มเติม: รายการค้าง สรุป และข้อมูลของฉัน',contents:{type:'bubble',body:{type:'box',layout:'vertical',spacing:'sm',contents:[
+  {type:'text',text:'เมนูเพิ่มเติม',weight:'bold',size:'lg',color:'#126858'},
+  {type:'text',text:'เลือกรายการที่ต้องการ',size:'sm',color:'#55736D'},
+ ]},footer:{type:'box',layout:'vertical',spacing:'sm',contents:[
+  messageButton('รายการค้าง','รายการค้าง','primary'),
+  messageButton('สรุปวันนี้','สรุปวันนี้'),
+  messageButton('สรุปเดือนนี้','สรุปเดือนนี้'),
+  messageButton('จัดการรายการ','จัดการรายการ'),
+  messageButton('ข้อมูลของฉัน','ข้อมูลของฉัน'),
+ ]}}};
+}
 export function personalDataMenu():Message {
   return {type:'text',text:'เลือกจัดการข้อมูลหรือดูวิธีใช้ได้เลยครับ',quickReply:{items:[
     quickMessage('ส่งออกข้อมูล'),quickMessage('ล้างประวัติ'),quickMessage('กู้คืนประวัติ'),quickMessage('สถานะระบบ'),quickMessage('เชิญเพื่อน'),quickMessage('ผู้ใช้งาน'),quickMessage('ขอรหัสเชื่อมต่อ'),quickMessage('ช่วยเหลือ'),

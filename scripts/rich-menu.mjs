@@ -15,7 +15,7 @@ const richMenuSpec = path.join(outDir, 'jod-jai-rich-menu.json');
 const W = 2500;
 const H = 1686;
 const rowH = 843;
-const columns = [0, 625, 1250, 1875, 2500];
+const columns = [0, 1250, 2500];
 
 function esc(value) {
  return String(value).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[ch]));
@@ -24,12 +24,8 @@ function esc(value) {
 const menuItems = [
  { title: 'ส่งสลิป', subtitle: 'แนบรูปเพื่ออ่านข้อมูล', command: 'ส่งสลิป', icon: 'receipt', tone: '#126858' },
  { title: 'เพิ่มรายการ', subtitle: 'กรอกค่าใช้จ่ายเอง', command: 'เพิ่มรายการ', icon: 'plus', tone: '#E26D5A' },
- { title: 'ดูรายการ', subtitle: 'ภาพรวมและรายการล่าสุด', command: 'ดูรายรับรายจ่าย', icon: 'list', tone: '#2E7D6B' },
- { title: 'รายการค้าง', subtitle: 'ตรวจรายการรอยืนยัน', command: 'รายการค้าง', icon: 'pending', tone: '#B87D42' },
- { title: 'สรุปวันนี้', subtitle: 'ยอดใช้จ่ายวันนี้', command: 'สรุปวันนี้', icon: 'sun', tone: '#D99A2B' },
- { title: 'สรุปเดือนนี้', subtitle: 'รวมรายจ่ายตามหมวด', command: 'สรุปเดือนนี้', icon: 'chart', tone: '#547C78' },
- { title: 'จัดการรายการ', subtitle: 'ดู แก้ไข หรือลบ', command: 'จัดการรายการ', icon: 'manage', tone: '#A84F73' },
- { title: 'ข้อมูลของฉัน', subtitle: 'ส่งออก ล้าง และช่วยเหลือ', command: 'ข้อมูลของฉัน', icon: 'data', tone: '#6B8F71' },
+ { title: 'ดูรายจ่าย', subtitle: 'ภาพรวมและรายการล่าสุด', command: 'ดูรายรับรายจ่าย', icon: 'list', tone: '#2E7D6B' },
+ { title: 'เมนูเพิ่มเติม', subtitle: 'รายการค้าง · สรุป · ตั้งค่า', command: 'เมนูเพิ่มเติม', icon: 'manage', tone: '#A84F73' },
 ];
 
 function iconSvg(type, x, y, color) {
@@ -48,8 +44,8 @@ function iconSvg(type, x, y, color) {
 
 function menuSvg() {
  const cells = menuItems.map((item, i) => {
-  const col = i % 4;
-  const row = Math.floor(i / 4);
+  const col = i % 2;
+  const row = Math.floor(i / 2);
   const x = columns[col] + 28;
   const y = row * rowH + 46;
   const w = columns[col + 1] - columns[col] - 56;
@@ -59,8 +55,8 @@ function menuSvg() {
    <rect x="${x+18}" y="${y+18}" width="${w-36}" height="${h-36}" rx="42" fill="none" stroke="${item.tone}" stroke-opacity="0.20" stroke-width="5"/>
    <circle cx="${x+w/2}" cy="${y+212}" r="118" fill="${item.tone}" fill-opacity="0.12"/>
    ${iconSvg(item.icon, x + w / 2 - 88, y + 118, item.tone)}
-   <text x="${x+w/2}" y="${y+410}" text-anchor="middle" font-family="Noto Sans Thai, Noto Sans, sans-serif" font-size="61" font-weight="700" fill="#163D37">${esc(item.title)}</text>
-   <text x="${x+w/2}" y="${y+492}" text-anchor="middle" font-family="Noto Sans Thai, Noto Sans, sans-serif" font-size="31" font-weight="500" fill="#55736D">${esc(item.subtitle)}</text>
+   <text x="${x+w/2}" y="${y+430}" text-anchor="middle" font-family="Noto Sans Thai, Noto Sans, sans-serif" font-size="83" font-weight="700" fill="#163D37">${esc(item.title)}</text>
+   <text x="${x+w/2}" y="${y+525}" text-anchor="middle" font-family="Noto Sans Thai, Noto Sans, sans-serif" font-size="42" font-weight="500" fill="#55736D">${esc(item.subtitle)}</text>
    <path d="M${x+150} ${y+h-118}h${w-300}" stroke="${item.tone}" stroke-opacity="0.32" stroke-width="6" stroke-linecap="round"/>
   </g>`;
  }).join('\n');
@@ -75,8 +71,8 @@ function menuSvg() {
 
 function richMenuObject() {
  const areas = menuItems.map((item, i) => {
-  const col = i % 4;
-  const row = Math.floor(i / 4);
+  const col = i % 2;
+  const row = Math.floor(i / 2);
   return {
    bounds: { x: columns[col], y: row * rowH, width: columns[col + 1] - columns[col], height: rowH },
    action: { type: 'message', text: item.command },
