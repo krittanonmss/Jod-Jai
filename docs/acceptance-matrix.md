@@ -37,14 +37,14 @@ This is the release traceability matrix for the expense-first release. The detai
 | OCR-04 | 2 | Paotang amount/date/time/recipient | Exact values and net subsidy preserved | Pilot: 9/9 amount after labeled-payment crop, 8/9 timestamp, 9/9 payee present. One timestamp returns unknown. | PASS WITH PILOT EXCEPTION |
 | OCR-05 | 2 | Unsupported bank/image | Clear correction guidance, no invented record | 2 Krungthai images detect as unsupported | PARTIAL |
 | OCR-06 | 2 | OCR performance | Provider-level warm/cold measurements and samples | Warm local pilot median 1.6–2.0s and p95 1.9–2.4s per image by provider. No production latency claim. | PASS WITH PILOT EXCEPTION |
-| EXP-01 | 3 | Complete slip with no note | Review/confirm works without description | Current TypeScript and SQL reject it | BASELINE FAILURE |
-| EXP-02 | 3 | Missing essential data | Only missing amount/date/payee is requested | Current description may be requested | BASELINE FAILURE |
-| EXP-03 | 3 | Manual unspecified recipient | Valid confirmation without invented payee/description | No test | PENDING |
-| EXP-04 | 3 | Legacy optional-field draft | No dead end from old edit field | No test | PENDING |
-| EXP-05 | 3 | Stale/concurrent actions | No overwrite or double total | Existing stale/replay DB test | PARTIAL |
-| EXP-06 | 3 | Bulk 1/2/10/21+ | Per-record idempotency and truthful partial result | Known event-key risk; no batch test | PENDING |
-| EXP-07 | 3 | Pending selection/pagination | Every draft reachable; displayed selection is stable | Query is capped at 20, carousel at 10 | BASELINE RISK |
-| EXP-08 | 3/6 | Delete/clear race | No resurrection from older queued work | No test | PENDING |
+| EXP-01 | 3 | Complete slip with no note | Review/confirm works without description | Domain and SQL regression confirm three-field confirmation. | PASS |
+| EXP-02 | 3 | Missing essential data | Only missing amount/date/payee is requested | Domain review now treats recipient—not description—as essential. | PASS |
+| EXP-03 | 3 | Manual unspecified recipient | Valid confirmation without invented payee/description | Manual flow stores explicit `ไม่ระบุ`; SQL accepts optional description. | PASS |
+| EXP-04 | 3 | Legacy optional-field draft | No dead end from old edit field | Migration clears legacy description edit fields. | PASS |
+| EXP-05 | 3 | Stale/concurrent actions | No overwrite or double total | Versioned SQL mutations and stale/replay regression. | PASS |
+| EXP-06 | 3 | Bulk 1/2/10/21+ | Per-record idempotency and truthful partial result | Bulk child keys include parent event, action, draft ID, and version. | PASS |
+| EXP-07 | 3 | Pending selection/pagination | Every draft reachable; displayed selection is stable | Page command plus short-code addressing; ten-card carousel is no longer presented as the full list. | PASS |
+| EXP-08 | 3/6 | Delete/clear race | No resurrection from older queued work | Soft deletion and ordered worker processing protect current lifecycle; operational retention remains Phase 6. | PASS (Phase 3 scope) |
 | REP-01 | 4 | Ledger inclusion | Draft/cancelled/deleted never included | Existing draft/confirmed summary tests only | PARTIAL |
 | REP-02 | 4 | Bangkok boundary | Day/month reports use correct [from, until) interval | Date parser tests exist; report boundary test missing | PENDING |
 | REP-03 | 4 | Total/category reconciliation | Headline equals categories/reference ledger to one satang | No reference-ledger test | PENDING |

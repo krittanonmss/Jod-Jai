@@ -25,8 +25,11 @@ async function changeConfirmed(event:LineEvent,d:Draft,action:string,patch:Recor
  const {data,error}=await db().rpc('jod_change_confirmed',{p_event:event.webhookEventId,p_user:event.source.userId,p_id:d.id,p_version:version,p_action:action,p_patch:patch});
  assertDb(error);return changeResponse(data as Change);
 }
-async function pending(user:string):Promise<Draft[]>{
- const {data,error}=await db().from('jod_drafts').select('*').eq('user_id',user).eq('status','draft').is('deleted_at',null).order('created_at',{ascending:false}).limit(100);
+async function pending(user:string,page?:number):Promise<Draft[]>{
+ let query=db().from('jod_drafts').select('*').eq('user_id',user).eq('status','draft').is('deleted_at',null).order('created_at',{ascending:false});
+ if(page)query=query.range((page-1)*10,page*10-1);
+ else query=query.limit(100);
+ const {data,error}=await query;
  assertDb(error);return data as Draft[];
 }
 async function latestConfirmed(user:string):Promise<Draft|null>{
@@ -82,9 +85,9 @@ async function exportData(user:string):Promise<Message[]> {
  const base=(process.env.APP_URL||'https://jod-jai.vercel.app').replace(/\/$/,'');
  return [exportCard(`${base}/api/export?token=${token}`,countResult.count||0)];
 }
-function pendingMessage(rows:Draft[]):Message[]{
+function pendingMessage(rows:Draft[],page=1):Message[]{
   if(!rows.length)return [text('ไม่มีรายการรอการยืนยันครับ ส่งสลิปใหม่ได้เลย'), {type:'text',text:'เริ่มต้นได้เลย',quickReply:{items:[{type:'action',action:{type:'message',label:'เพิ่มรายการ',text:'เพิ่มรายการ'}},{type:'action',action:{type:'message',label:'ส่งสลิป',text:'ส่งสลิป'}}]}}];
-  const shown=Math.min(rows.length,10);return [text(`รายการรอการยืนยัน ${rows.length} รายการ\nแสดง ${shown} รายการล่าสุด; ใช้ #รหัสรายการ ตามด้วยข้อมูลเพื่อแก้ไขรายการอื่นได้`), pendingCarousel(rows)];
+  const shown=Math.min(rows.length,10);return [text(`รายการรอการยืนยัน หน้า ${page}\nแสดง ${shown} รายการ; ใช้ #รหัสรายการ ตามด้วยข้อมูลเพื่อแก้ไข หรือพิมพ์ “รายการค้าง ${page+1}” เพื่อดูหน้าถัดไป`), pendingCarousel(rows)];
 }
 async function totals(user:string,monthly:boolean):Promise<Message[]>{
  const thaiNow=new Date(Date.now()+7*3600000); const date=thaiNow.toISOString().slice(0,10);
@@ -260,7 +263,8 @@ if(imageMessage){
    return changeConfirmed(event,d,'patch',{...patch,edit_field:null},d.version);
   }
   const rows=await pending(user);
-  if(input==='รายการค้าง')return pendingMessage(rows);
+  const pendingPage=input.match(/^รายการค้าง(?:\s+(\d{1,3}))?$/);
+  if(pendingPage){const page=Math.max(1,Number(pendingPage[1]||1));return pendingMessage(await pending(user,page),page);}
   const cancel=input.match(/^ยกเลิก\s+#?([a-f0-9]{10})$/i);
   const addressed=input.match(/^#([a-f0-9]{10})(?:\s+([\s\S]+))?$/i);
   const selected=(rows.length>1||/^ยกเลิก\s/.test(input))?parsePendingSelection(input,rows.length):null;

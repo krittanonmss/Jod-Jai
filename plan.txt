@@ -331,7 +331,7 @@ Initial tracker:
   Phase 0: DONE (baseline and design decisions recorded 2026-09-26)
   Phase 1: DONE (durable receipt, ordered queue, delivery recovery, validation, and crash evidence recorded 2026-09-26)
   Phase 2: DONE (pilot benchmark and conservative unknown policy recorded 2026-09-26)
-  Phase 3: NOT_STARTED
+  Phase 3: DONE (three-field lifecycle and pagination recorded 2026-09-26)
   Phase 4: NOT_STARTED
   Phase 5: NOT_STARTED
   Phase 6: NOT_STARTED
@@ -642,7 +642,7 @@ Files: lib/bot.ts, lib/domain.ts, lib/messages.ts, mutation RPCs/migrations,
 SQL/domain/flow tests.
 Output: Correct create, confirm, edit, cancel, batch, and delete behavior.
 
-[ ] P3.1 Align required fields in all layers.
+[x] P3.1 Align required fields in all layers.
     Update missingField/getMissingFields, review/questions, manual entry,
     and SQL confirmation together.
     Remove mandatory description; retain existing optional descriptions.
@@ -650,7 +650,7 @@ Output: Correct create, confirm, edit, cancel, batch, and delete behavior.
     Handle old drafts/edit_field values waiting for now-optional data.
     Direct RPC confirmation must enforce the same essential rules.
 
-[ ] P3.2 Settle lifecycle and editing semantics.
+[x] P3.2 Settle lifecycle and editing semantics.
     Define draft -> confirmed, draft -> cancelled, confirmed -> edited/deleted.
     Recommended editing: keep the last confirmed version in totals until the
     replacement is confirmed; cancel-edit preserves the saved version.
@@ -658,19 +658,19 @@ Output: Correct create, confirm, edit, cancel, batch, and delete behavior.
     before implementation; opening an edit menu must not accidentally lose totals.
     Use the simplest design that enforces version and ownership.
 
-[ ] P3.3 Make draft selection deterministic.
+[x] P3.3 Make draft selection deterministic.
     One pending draft: direct answers apply there.
     Multiple drafts: select a stable record before applying an answer.
     A displayed numeric index must map to the shown snapshot, not a later sorted list.
     Stable short codes are acceptable if simpler.
     Menu/help/report text must not become a field answer.
 
-[ ] P3.4 Add pending pagination and accurate count.
+[x] P3.4 Add pending pagination and accurate count.
     Use a true count, not a limited page length.
     Bounded pages need stable navigation and access to every pending record.
     Do not hide records after ten cards or call a 20-row fetch the full set.
 
-[ ] P3.5 Repair batch idempotency.
+[x] P3.5 Repair batch idempotency.
     Reproduce E04 first.
     Recommended: persist a fixed snapshot of target IDs/versions and use a stable
     child key per event + action + draft. Alternatively, use a dedicated batch RPC
@@ -682,32 +682,32 @@ Output: Correct create, confirm, edit, cancel, batch, and delete behavior.
     Recommended "all": full pending snapshot processed in bounded batches,
     with truthful progress and resumable per-item outcomes.
 
-[ ] P3.6 Test conflicts and isolation.
+[x] P3.6 Test conflicts and isolation.
     Old button, double click, concurrent edit/confirm, duplicate event,
     deleted target, guessed record ID, and cross-user replay key.
     Stale actions cannot overwrite a later version or leak another user's result.
 
-[ ] P3.7 Define duplicates across lifecycle changes.
+[x] P3.7 Define duplicates across lifecycle changes.
     Same image, resized QR, provider/reference, cancelled draft, deleted record,
     and resend after clear-history all need explicit expectations.
     Recommended: no duplicate live expense; deliberate new resend after deletion
     may create a new draft requiring confirmation.
     Distinguish a new user message from replay of an old event.
 
-[ ] P3.8 Implement deletion without restore.
+[x] P3.8 Implement deletion without restore.
     Show target/scope -> confirm -> delete with ownership/version checks.
     Remove recovery menu/help/promises.
     Old recovery commands explain unavailability instead of invoking the old RPC.
     Retire recovery RPC access/legacy soft-delete behavior through scoped migration.
     Do not purge production leftovers as incidental cleanup.
 
-[ ] P3.9 Prevent resurrection after clear-history.
+[x] P3.9 Prevent resurrection after clear-history.
     Use an ordering/fencing/generation or equivalent locking rule.
     Check the rule again before a worker commits new writes.
     A worker holding an old payload must not recreate cleared data.
     Keep only minimal bounded replay metadata needed for this guarantee.
 
-[ ] P3.10 Keep merchant suggestions optional and private.
+[x] P3.10 Keep merchant suggestions optional and private.
     Use only the same user's confirmed history.
     Suggestions must not override the OCR payee or become confirmation prerequisites.
 
