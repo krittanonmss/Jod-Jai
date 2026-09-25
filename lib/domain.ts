@@ -89,3 +89,12 @@ export function parseAnswer(field: string, answer: string): Record<string, unkno
   if (!answer || answer.length > 500) throw new Error('รายละเอียดต้องมี 1–500 ตัวอักษร');
   return { description: answer, category: inferCategory(answer) };
 }
+export type PendingSelection={index:number;answer?:string;cancel:boolean};
+export function parsePendingSelection(input:string,count:number):PendingSelection|null {
+  const cancel=input.match(/^ยกเลิก\s+(?:รายการ\s*)?(\d{1,2})$/);
+  const selected=input.match(/^(?:รายการ\s*)?(\d{1,2})(?:\s+([\s\S]+))?$/);
+  const match=cancel||selected;if(!match)return null;
+  const index=Number(match[1])-1;
+  if(!Number.isInteger(index)||index<0||index>=count)return null;
+  return {index,answer:cancel?undefined:selected?.[2]?.trim(),cancel:Boolean(cancel)};
+}

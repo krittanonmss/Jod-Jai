@@ -63,7 +63,7 @@ export function overviewCard(monthTotal:number,confirmed:Draft[],pendingCount:nu
  ]}}};
 }
 export function summary(d:Draft):string {
- return `รายการ #${d.short_code}\nยอดจ่าย: ${d.amount_satang ? money(d.amount_satang)+' บาท' : 'อ่านไม่ชัด'}\nวันที่: ${d.occurred_at?displayDate(d.occurred_at):'อ่านไม่ชัด'}\nผู้รับ: ${d.recipient||'อ่านไม่ชัด'}\nรายละเอียด: ${d.description||'ยังไม่ได้ระบุ'}\nหมวด: ${d.category}`+
+ return `ยอดจ่าย: ${d.amount_satang ? money(d.amount_satang)+' บาท' : 'อ่านไม่ชัด'}\nวันที่: ${d.occurred_at?displayDate(d.occurred_at):'อ่านไม่ชัด'}\nผู้รับ: ${d.recipient||'อ่านไม่ชัด'}\nรายละเอียด: ${d.description||'ยังไม่ได้ระบุ'}\nหมวด: ${d.category}`+
  (d.subsidy_satang?`\nสิทธิช่วยจ่าย: ${money(d.subsidy_satang)} บาท (ไม่รวมในรายจ่าย)`: '')+
  (d.fee_satang?`\nค่าธรรมเนียมในสลิป: ${money(d.fee_satang)} บาท (แสดงแยกจากยอดจ่าย)`: '');
 }
@@ -74,14 +74,14 @@ export function question(d:Draft, field:string):Message {
   description:'รายการนี้เป็นค่าอะไรครับ?', recipient:'ระบุชื่อผู้รับเงินครับ',
   category:'เลือกหมวด: '+categories.join(', '),
  };
- const message=text(`${summary(d)}\n\n${prompts[field]||prompts.description}\nตอบได้เลยเมื่อมีรายการค้างรายการเดียว${field==='category'?' หรือเลือกจากปุ่มด้านล่าง':''}\nหากมีหลายรายการ ให้พิมพ์ #${d.short_code} ตามด้วยคำตอบ`);
+ const message=text(`${summary(d)}\n\n${prompts[field]||prompts.description}\nตอบได้เลยเมื่อมีรายการค้างรายการเดียว${field==='category'?' หรือเลือกจากปุ่มด้านล่าง':''}\nหากมีหลายรายการ ให้เปิด “รายการค้าง” แล้วตอบโดยขึ้นต้นด้วยหมายเลขรายการ`);
  if(field==='category')message.quickReply={items:categories.map(category=>quickMessage(category))};
  return message;
 }
 export function review(d:Draft):Message {
  const field=d.edit_field||missingField(d);
  if(field)return question(d,field);
- return {type:'flex',altText:`ตรวจสอบรายจ่าย ${money(d.amount_satang!)} บาท #${d.short_code}`,contents:{
+ return {type:'flex',altText:`ตรวจสอบรายจ่าย ${money(d.amount_satang!)} บาท`,contents:{
   type:'bubble',body:{type:'box',layout:'vertical',spacing:'md',contents:[
    {type:'text',text:'ตรวจสอบก่อนบันทึก',weight:'bold',size:'lg',color:'#126858'},
    {type:'text',text:summary(d),wrap:true,size:'sm'},
@@ -93,7 +93,7 @@ export function review(d:Draft):Message {
  }};
 }
 export function editMenu(d:Draft):Message {
- return {type:'text',text:`แก้ไขรายการ #${d.short_code}: เลือกข้อมูลที่ต้องการแก้ไข`,quickReply:{items:[
+ return {type:'text',text:'เลือกข้อมูลที่ต้องการแก้ไข',quickReply:{items:[
   ['description','รายละเอียด'],['amount','ยอดเงิน'],['date','วันเวลา'],['recipient','ผู้รับ'],['category','หมวดหมู่'],
  ].map(([field,label])=>({type:'action',action:{type:'postback',label,data:data('field',d,field),displayText:label}}))}};
 }

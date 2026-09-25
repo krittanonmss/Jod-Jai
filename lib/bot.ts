@@ -1,6 +1,6 @@
 import {createHash,randomBytes} from 'node:crypto';
 import {db,assertDb} from './db';
-import {Draft,normalizeSlip,missingField,parseAnswer,money} from './domain';
+import {Draft,normalizeSlip,missingField,parseAnswer,money,parsePendingSelection} from './domain';
 import {getImage,LineEvent,Message} from './line';
 import {recognizeSlip} from './ocr';
 import {slipQrHash} from './qr';
@@ -10,9 +10,9 @@ type Change={code:string;draft?:Draft};
 function changeResponse(result:Change):Message[]{
  if(result.code==='not_found')return [text('ไม่พบรายการของคุณครับ')];
  const d=result.draft!;
- if(['saved','confirmed'].includes(result.code))return [text(`บันทึกแล้ว ✅ #${d.short_code}\n${d.description}\n${money(d.amount_satang!)} บาท • ${d.category}`)];
- if(result.code==='cancelled')return [text(`ยกเลิกรายการ #${d.short_code} แล้ว ไม่นับในยอดรายจ่ายครับ`)];
- if(result.code==='deleted')return [text(`ลบรายการ ${d.description||'#'+d.short_code} แล้วครับ`)];
+ if(['saved','confirmed'].includes(result.code))return [text(`บันทึกแล้ว ✅\n${d.description}\n${money(d.amount_satang!)} บาท • ${d.category}`)];
+ if(result.code==='cancelled')return [text('ยกเลิกรายการแล้ว ไม่นับในยอดรายจ่ายครับ')];
+ if(result.code==='deleted')return [text(`ลบรายการ ${d.description||'ล่าสุด'} แล้วครับ`)];
  if(result.code==='reopened')return [text('เปิดรายการล่าสุดให้แก้ไขแล้วครับ'),editMenu(d)];
  return [...(result.code==='stale'?[text('ข้อมูลมีการแก้ไขแล้ว กรุณาตรวจสรุปล่าสุดก่อนยืนยันครับ')]:[]),review(d)];
 }
@@ -41,7 +41,7 @@ async function exportData(user:string):Promise<Message[]> {
 function pendingMessage(rows:Draft[]):Message[]{
  if(!rows.length)return [text('ไม่มีรายการรอการยืนยันครับ ส่งสลิปใหม่ได้เลย')];
  // LINE allows at most five messages per push. Each draft has its own ID and buttons.
- return [text(`รายการรอการยืนยัน ${rows.length}${rows.length===20?'+':''} รายการ\nพิมพ์ #รหัส เพื่อดูรายการ หรือ #รหัส รายละเอียด เพื่อเติมข้อมูล\n`+rows.map(d=>`#${d.short_code} ${d.amount_satang?money(d.amount_satang)+' บาท':'รอระบุยอด'} ${d.description||d.recipient||''}`).join('\n')), ...rows.slice(0,4).map(review)];
+ return [text(`รายการรอการยืนยัน ${rows.length}${rows.length===20?'+':''} รายการ\nตอบด้วยหมายเลข เช่น “1 ค่าอาหาร” หรือ “ยกเลิก 1”\n\n`+rows.map((d,index)=>`${index+1}. ${d.amount_satang?money(d.amount_satang)+' บาท':'รอระบุยอด'} • ${d.description||d.recipient||'รอรายละเอียด'}`).join('\n')), ...rows.slice(0,4).map(review)];
 }
 async function totals(user:string,monthly:boolean):Promise<Message[]>{
  const thaiNow=new Date(Date.now()+7*3600000); const date=thaiNow.toISOString().slice(0,10);
@@ -164,8 +164,13 @@ export async function processEvent(event:LineEvent):Promise<Message[]>{
   if(input==='รายการค้าง')return pendingMessage(rows);
   const cancel=input.match(/^ยกเลิก\s+#?([a-f0-9]{10})$/i);
   const addressed=input.match(/^#([a-f0-9]{10})(?:\s+([\s\S]+))?$/i);
+  const selected=(rows.length>1||/^ยกเลิก\s/.test(input))?parsePendingSelection(input,rows.length):null;
   let d:Draft|undefined; let answer=input;
-  if(cancel||addressed){
+  if(selected){
+   d=rows[selected.index];
+   if(selected.cancel)return change(event,d,'cancel');
+   if(!selected.answer)return [review(d)];answer=selected.answer;
+  } else if(cancel||addressed){
    const code=(cancel?.[1]||addressed?.[1]||'').toUpperCase();
    const found=await db().from('jod_drafts').select('*').eq('user_id',user).eq('short_code',code).maybeSingle();assertDb(found.error);
    d=found.data as Draft|undefined;

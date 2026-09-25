@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createHmac} from 'node:crypto';
-import {satang,thaiDate,normalizeSlip,parseAnswer,missingField,Draft} from '../lib/domain';
+import {satang,thaiDate,normalizeSlip,parseAnswer,missingField,Draft,parsePendingSelection} from '../lib/domain';
 import {parseSlipText,parseDateLine} from '../lib/slip-parser';
 import {validSignature} from '../lib/line';
 import {review,summaryCard,overviewCard,clearHistoryConfirm,deleteRecordConfirm,exportCard,managementMenu,personalDataMenu} from '../lib/messages';
@@ -63,6 +63,12 @@ test('editing preserves validation and allows categorization',()=>{
  assert.deepEqual(parseAnswer('amount','22.50 บาท'),{amount_satang:2250});
  assert.deepEqual(parseAnswer('description','ค่าข้าว'),{description:'ค่าข้าว',category:'อาหาร'});
  assert.throws(()=>parseAnswer('amount','0'));assert.throws(()=>parseAnswer('date','yesterday'));assert.throws(()=>parseAnswer('category','wrong'));
+});
+test('pending drafts can be selected with simple running numbers',()=>{
+ assert.deepEqual(parsePendingSelection('1 ค่าอาหาร',3),{index:0,answer:'ค่าอาหาร',cancel:false});
+ assert.deepEqual(parsePendingSelection('รายการ 2',3),{index:1,answer:undefined,cancel:false});
+ assert.deepEqual(parsePendingSelection('ยกเลิก 3',3),{index:2,answer:undefined,cancel:true});
+ assert.equal(parsePendingSelection('4 ค่าอาหาร',3),null);
 });
 import {pairingMatches} from '../lib/access';
 test('owner pairing requires an exact high-entropy code and rejects empty configuration',()=>{
