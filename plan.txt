@@ -1,0 +1,1121 @@
+JOD-JAI: PHASED DEVELOPMENT AND IMPLEMENTATION HANDOFF
+===================================================
+Document date: 2026-09-26
+Repository: /home/krittanon/Projects/myco/Jod-Jai
+Inspected application baseline: main after a9b4444
+Document language: English. Product language: Thai.
+Audience: The model implementing this project in subsequent sessions.
+Status: Product constraints approved; implementation phases not yet certified.
+
+Read this plan before implementing a phase. Reinspect the current working tree:
+the baseline identifies the planning snapshot, not a commit to reset to.
+Preserve unrelated user changes. An existing function, green build, or successful
+deployment does not prove that its feature meets the acceptance requirements.
+
+This revision changes documentation only. It does not implement the phases,
+change production data, remove recovery from production, or deploy code.
+
+CONTENTS
+--------
+1. Approved decisions and remaining choices
+2. Current application and repository map
+3. Known issues and evidence classification
+4. Target journeys and cross-component contracts
+5. Execution rules and dependencies
+6. Phase 0: Scope, acceptance matrix, and baseline
+7. Phase 1: Reliable processing and responses
+8. Phase 2: Accurate, free OCR
+9. Phase 3: Complete expense lifecycle
+10. Phase 4: Correct reports
+11. Phase 5: Thai interaction design and menus
+12. Phase 6: Data, access, and zero-cost operations
+13. Phase 7: Integrated acceptance and stable release
+14. Phase 8: Income and later backlog
+15. Verification commands and side effects
+16. Release, migration, and rollback
+17. Progress records, handoff, and first execution steps
+
+
+1. APPROVED DECISIONS AND REMAINING CHOICES
+==========================================
+
+D01 — APPROVED: Stabilize expenses first; add income afterward.
+The expense release covers Phases 0–7. Income is the first feature in Phase 8.
+Do not expand the current release into account balances, income, or own-account
+transfers. Preserve compatibility with a later income migration.
+
+D02 — APPROVED: Personal use and explicitly invited friends.
+Keep owner pairing, invitations, revocation, and per-user isolation.
+Public registration and a commercial multi-tenant service are outside this release.
+
+D03 — APPROVED: Zero OCR budget; free tools plus custom processing/parsing.
+Essential slip information:
+  1) Where the money went: recipient/payee.
+  2) When: transaction date and time.
+  3) How much: transferred/actually paid amount.
+Start with the existing locally executed Tesseract pipeline. Improve preprocessing,
+layout recognition, extraction, and validation before replacing it.
+Do not introduce paid OCR, model APIs, transaction verification, or hosting.
+A free external API is not automatically authorized to receive private images.
+If local options prove insufficient, explain external data handling and quotas
+and obtain the user's choice before uploading images. No external OCR is required.
+
+D04 — APPROVED CONSTRAINT: No payments to Supabase or Vercel.
+The user accepts a storage design that satisfies this constraint. A particular
+retention period has not been approved.
+Inspect actual plans, billing behavior, usage, and current official limits before
+choosing capacity or retention thresholds. Date the evidence.
+Store compact transaction text, not slip images. Bound logs and retries.
+Prefer restricting new work or offering export/cleanup over enabling paid capacity.
+Do not silently delete account history as quota approaches.
+Do not promise unlimited free storage or buy capacity to reach a speed target.
+Include LINE message quotas and other dependencies in the zero-cost design.
+
+D05 — APPROVED: No user-facing recovery of deleted expenses.
+Single-record deletion and clear-history both require explicit confirmation.
+Remove recovery menus, commands, and promises during implementation.
+This decision does not authorize deleting existing production records now.
+Legacy soft-deleted data needs a scoped transition/purge plan before changing it.
+Queue retries, crash recovery, and release rollback remain necessary: these are
+different from restoring an expense the user deliberately deleted.
+
+D06 — APPROVED: Use the transfer amount; do not automatically add fees.
+Example: transfer 100 THB plus fee 2 THB -> primary expense amount is 100 THB.
+Do not require reading or asking about a fee before an expense can be confirmed.
+Do not rewrite historical amounts or drop fee columns merely to simplify the UI.
+For Paotang subsidy slips, preserve the existing net-out-of-pocket rule:
+goods 55 THB minus subsidy 33 THB -> expense 22 THB, not 55 or 88 THB.
+
+D07 — OPTIONAL WORDING CHOICE:
+Recommended overview label: "ดูรายจ่าย" (View expenses).
+Keep "ดูรายรับรายจ่าย" and current text aliases working.
+Ask for a wording preference during screen review if useful. This is not a reason
+to block backend work or an invitation to implement income prematurely.
+
+Derived requirements from the approved three-field scope:
+- Description, note, category, reference, subsidy, and fee are optional input.
+- Preserve useful optional data already available; do not ask mandatory extra questions.
+- Default category to "อื่น ๆ" (Other) when no optional category is available.
+- A slip with all essential fields proceeds directly to review and confirmation.
+- Ask only for essential fields that are missing, invalid, or contradictory.
+- Manual expenses may have no transfer recipient: allow explicit unspecified payee.
+- User confirmation is still required before any expense contributes to totals.
+
+Ask only when a meaningful unresolved choice is reached:
+- Exact history retention after measuring free-tier capacity.
+- Sending private images to a free external service, if proposed.
+- A material change to product scope or financial meaning.
+Do not re-ask D01–D06. Record and implement routine technical choices within scope.
+
+
+2. CURRENT APPLICATION AND REPOSITORY MAP
+=========================================
+
+Application:
+- Next.js backend on Vercel, Supabase PostgreSQL, LINE OA as the main interface.
+- Website is a landing page, not a private financial dashboard.
+- Production site: https://jod-jai.vercel.app
+- Webhook: /api/line/webhook
+- Worker/maintenance endpoint: /api/jobs/run
+- Existing LINE OA identifier: @332nhscs
+- OCR providers: paotang, make, bbl, scb.
+
+Read the relevant current files before editing:
+
+app/api/line/webhook/route.ts
+  Signature/schema validation, authorization, rate limiting, inline processing,
+  image acknowledgement, queue insertion, and worker scheduling.
+lib/line.ts
+  LINE reply/push, push retry UUIDs, image download, quota lookup.
+lib/jobs.ts
+  Job claim/process/send, persisted responses, retry, cleanup.
+app/api/jobs/run/route.ts
+  POST starts work; GET also performs retention maintenance. Inspect before using.
+lib/access.ts, lib/config.ts
+  Owner/member checks, pairing, invitations, authorization/rate RPCs.
+lib/bot.ts
+  Commands, drafts, mutation calls, batch actions, reports, exports.
+lib/domain.ts
+  Slip/Draft models, integer money, Thai dates, required fields, answer parsing.
+lib/ocr.ts
+  Tesseract worker, preprocessing, provider crops, extraction fallbacks.
+lib/slip-parser.ts
+  Field parsing and recipient/date cleanup.
+lib/qr.ts
+  Duplicate identity from QR; not bank verification.
+lib/messages.ts
+  Thai text, Flex cards, quick replies, review questions, menus.
+app/api/export/route.ts
+  Token-authorized CSV download.
+app/page.tsx, public/
+  Landing page and public assets.
+scripts/rich-menu.mjs
+  Rich-menu image/config generation and remote application.
+scripts/manage.mjs
+  DB administration, migrations, deployment, status, smoke, cron, maintenance.
+scripts/validate-line.ts
+  Existing limited LINE validation script.
+scripts/test-flow.ts
+  DB/OCR integration flow, mocked LINE image downloads, export access, cleanup.
+scripts/inspect-ocr.ts, scripts/run-worker.ts
+  Inspect side effects before use; diagnostic names do not imply read-only behavior.
+tests/domain.test.ts, tests/ocr.test.ts, tests/database.sql
+  Existing domain, image, and SQL integration tests.
+supabase/migrations/001...009
+  Schema, ordering, deduplication, access, data controls, retention, rate limits.
+README.md, ux-ui-analysis.txt
+  Historical behavior/design context; reconcile stale statements with current code.
+vercel.json, next.config.ts, package.json
+  Hosting, cron, build, and runtime settings.
+
+Private fixture sources supplied by the user:
+  /home/krittanon/Downloads/slip
+  example-slip/ in the repository, if present
+Inspect locally. Do not commit, deploy, or publish private slip contents.
+Use anonymous fixture IDs in tracked reports.
+
+Keep the existing framework/database unless measured evidence warrants a change.
+Do not begin by rewriting the entire application.
+
+
+3. KNOWN ISSUES AND EVIDENCE CLASSIFICATION
+==========================================
+
+E01 — Confirmed production incident, fixed at the planning baseline:
+Overview/summary Flex cards failed with LINE HTTP 400. Decorative boxes lacked
+required contents. a9b4444 removed them and added a structural regression check.
+Corrected payloads passed LINE validation; deployment smoke passed; affected jobs
+were regenerated and completed. Preserve this fix and broaden card coverage.
+
+E02 — User observations, not an instrumented benchmark:
+Simple responses/image acknowledgements took about 4–5 seconds. Slip details took
+14.69 seconds in one observation and roughly 15–20 seconds in others.
+Measure stages before blaming OCR, hosting, or the database.
+
+E03 — User-observed OCR problems:
+MAKE: missing date/time; an example read 99.00 as 9.00.
+Bangkok Bank: amount missing on some slips.
+SCB: date/time and mixed Thai/English recipient names unreliable.
+Some recipients were numeric IDs instead of destination names.
+Paotang is the user's best-performing provider; protect it against regression.
+
+The following are code-review findings to reproduce, not claims that every
+scenario has already occurred in production:
+
+E04: Batch actions reuse one event ID for multiple draft RPC calls, but mutation
+     replay is keyed by event_id. One member's result may be replayed for another.
+E05: pending() fetches at most 20 rows; the carousel shows at most 10.
+     Counts, selections, pagination, and "all" actions need explicit semantics.
+E06: Inline text/postbacks and queued images do not share an obvious ordering path.
+     Test image -> immediate answer and concurrent deliveries.
+E07: Image acknowledgement happens before durable queue insertion.
+E08: Rate rejection can produce silence; warning delivery is not awaited.
+E09: Retry reuses saved response JSON; a renderer deploy cannot fix that JSON itself.
+E10: Recovery restores deleted rows as drafts; single confirmed deletion is hard
+     delete. Retire recovery under D05 rather than expanding it.
+E11: CSV uses one query; completeness beyond the actual DB row limit is unproven.
+E12: Four main OCR fixtures can be skipped when absent. Recipient tests check only
+     presence. Some integration assertions still refer to older response wording.
+E13: Fixed relative crops and date/time inference from reference IDs need validation.
+E14: README claims about queued events differ from the inline implementation.
+E15: TypeScript missingField/getMissingFields AND SQL jod_change_draft require a
+     description. Changing only the review card will not implement the new scope.
+E16: Authorization/rate limiting precedes durable event deduplication. Redelivery
+     may consume allowance or repeat notices; reproduce this behavior.
+
+Assign each reproduced issue an acceptance case and owner phase.
+Record findings that do not reproduce instead of silently erasing them.
+
+
+4. TARGET JOURNEYS AND CROSS-COMPONENT CONTRACTS
+===============================================
+
+4.1 Primary journeys
+
+Complete slip:
+  receive -> durably accept -> acknowledge -> OCR -> review three fields
+  -> user confirms -> save once -> success -> report includes expense once.
+
+Incomplete slip:
+  receive -> OCR -> ask for missing essential field -> validate answer
+  -> ask remaining essentials only -> review -> confirm.
+
+Manual expense:
+  start/shortcut -> amount -> date/time (default now, editable)
+  -> optional payee or explicitly unspecified -> review -> confirm.
+  Preserve shorthand such as "เพิ่มรายการ 45 ค่าอาหาร"; the trailing text can
+  populate optional description/category without becoming mandatory.
+
+Manage records:
+  select exact record -> edit with version checks -> confirm replacement;
+  or select delete -> show exact scope -> explicit confirmation -> remove from totals.
+
+Reports:
+  overview/today/month -> confirmed ledger -> category breakdown/recent records
+  -> CSV with the same financial meaning.
+
+4.2 Domain invariants
+
+Money:
+- Store integer satang; reject nonpositive, malformed, or unsafe-size amounts.
+- Never aggregate using floating-point baht arithmetic.
+- Distinguish amount from fee, subsidy, gross amount, balance, account, reference.
+- Review, database, reports, and CSV all follow D06.
+
+Time:
+- Persist a valid instant; display/interpret supported user input in Asia/Bangkok.
+- Convert Buddhist years explicitly and reject invalid dates/times.
+- Use report intervals [from, until), with boundaries computed in Bangkok time.
+- A transaction reference is not automatically a valid date/time source.
+
+Required fields:
+- Image expense: positive amount, valid transaction timestamp, recipient.
+- Unreadable recipient: ask the user; do not substitute a numeric ID.
+- Manual expense: amount/time; allow explicit unspecified recipient.
+- Description/category selection must not become hidden prerequisites.
+- UI, TypeScript validation, and SQL confirmation must agree.
+- Old drafts waiting on optional description/category must have a migration or
+  transition path; stale edit_field values must not permanently block confirmation.
+
+Confirmation:
+- Drafts are excluded from totals. Confirm explicitly with ownership/version checks.
+- Replayed confirmation does not produce another expense or another total.
+- Replay lookup must validate the acting user and operation identity before returning
+  a saved result; a guessed replay key must not expose another user's data.
+
+Delivery:
+- Business completion and outbound delivery are different states.
+- Persist results needed for recovery before sending.
+- A delivery retry must not rerun a completed mutation.
+- Do not promise exactly-once visible LINE delivery under every network condition:
+  a timeout may occur after the remote service accepted the message.
+- Handle and record unknown acceptance rather than blindly producing another send.
+
+Deletion:
+- Confirm exact scope; enforce ownership/version; remove the expense from totals.
+- A queued job must not recreate data after clear-history.
+- No user-facing restore command or seven-day recovery promise in the target release.
+- Minimal replay/audit metadata may remain for a bounded correctness horizon;
+  do not retain full deleted private content indefinitely.
+
+4.3 Component responsibilities
+
+LINE adapter -> durable event/order -> command services -> domain/database
+                                           |                   |
+                                           v                   v
+                                     OCR extraction       report query
+                                           |                   |
+                                           +--> presentation <-+
+                                                      |
+                                               outbound delivery
+
+Extract responsibilities from lib/bot.ts incrementally where needed.
+This diagram does not require a new framework or one table per component.
+
+Settle these logical contracts in Phase 0/1:
+- Receipt: user, event ID, sequence, kind, acceptance time, processing state.
+- Business result: operation ID, result code, target/version, safe display data.
+- Delivery: operation, slot (ack/result/fallback), renderer version, stable retry
+  identity, acceptance state, attempts, and error class.
+- OCR result: provider/layout, field values, evidence sources, unknown/conflict reasons.
+Reuse existing tables where practical. Every new field needs a concrete purpose.
+
+
+5. EXECUTION RULES AND DEPENDENCIES
+==================================
+
+Phase states: BACKLOG / NOT_STARTED / IN_PROGRESS / BLOCKED / IN_REVIEW / DONE.
+These describe document progress, not tool-level goal status.
+
+Initial tracker:
+  Phase 0: DONE (baseline and design decisions recorded 2026-09-26)
+  Phase 1: NOT_STARTED
+  Phase 2: NOT_STARTED
+  Phase 3: NOT_STARTED
+  Phase 4: NOT_STARTED
+  Phase 5: NOT_STARTED
+  Phase 6: NOT_STARTED
+  Phase 7: NOT_STARTED
+  Phase 8: BACKLOG
+
+Sequence: 0 -> 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8.
+Phase 2 needs reliable processing and timing instrumentation.
+Phase 3 needs the OCR contract, not every optional OCR enhancement.
+Phase 4 needs settled confirm/edit/delete semantics.
+Phase 5 uses stable commands and report data.
+Phase 6 integrates policies earlier phases must already respect.
+A proven data-loss, wrong-total, or cross-user defect takes priority: do not leave
+it exposed solely because its nominal phase is later.
+
+For each item:
+1. Inspect the relevant current code and worktree.
+2. Define expected behavior in the acceptance matrix.
+3. Reproduce the defect where practical.
+4. Implement the complete change across affected layers.
+5. Verify the changed behavior and relevant earlier-phase regressions.
+6. Record evidence, limits, and the next concrete task.
+
+Do not:
+- Rewrite unrelated features while closing one phase.
+- Claim skipped OCR tests passed.
+- Silently reduce targets to mark work complete.
+- Treat chat screenshots as instrumented server timing.
+- Run destructive scripts against an unverified database target.
+- Reset all queues/history to make tests green.
+- Repeatedly ask for already-authorized routine technical steps.
+
+Ask for meaningful missing product choices, continue independent work, and record
+the dependency. Start implementation when requested; producing this plan is a
+documentation task, not evidence that any implementation phase is done.
+
+
+6. PHASE 0 — SCOPE, ACCEPTANCE MATRIX, AND BASELINE
+=================================================
+Entry: Approved decisions and access to current repository.
+Output: Reproducible baseline and definition of release acceptance.
+Do not try to repair every application defect during baseline collection.
+
+Create during implementation:
+  docs/acceptance-matrix.md
+  docs/architecture-decisions.md
+  docs/baseline.md
+  docs/release-checklist.md
+  A private fixture manifest/results directory excluded from Git and deployment.
+
+[x] P0.1 Inventory all entry points.
+    For each: Thai command/alias, menu/button, read vs mutation, required role,
+    current result, intended result, and owner phase.
+    Cover slip/manual, overview/today/month, pending/latest/edit/delete,
+    bulk confirm/cancel, export/clear, status, pairing/invite/revoke, old recovery.
+
+[x] P0.2 Create requirement-to-test traceability.
+    Map D01–D06 and E01–E16 to work items and acceptance case IDs.
+    Each case records:
+      ID | phase | setup | event/input order | expected DB state | expected response
+      | test level | fixture | result/evidence | unresolved issue.
+    Distinguish baseline failures from regressions introduced by later edits.
+
+[x] P0.3 Audit the existing tests and their side effects.
+    Determine which commands use local, staging, or production credentials.
+    Review SQL transaction rollback and integration cleanup scope.
+    Repair stale assertions only when the intended behavior is established.
+    Report passed/failed/skipped separately; missing fixtures are not success.
+    Do not upload private slips to CI to make the fixture count look complete.
+
+[x] P0.4 Build private ground truth.
+    Assign anonymous IDs such as make-001 and bbl-001.
+    Record layout, dimensions, quality, expected satang, UTC timestamp, recipient,
+    and fields unreadable even by a person.
+    Visually inspect original slips; do not copy current OCR output as ground truth.
+    Prefer /home/krittanon/Downloads/slip over chat screenshot crops.
+
+[x] P0.5 Establish isolated verification.
+    Prefer a free local/test DB or an existing isolated free environment.
+    Do not create paid projects or assume another free hosted project is available.
+    Use unique test user IDs, precise cleanup, and no destructive tests on real users.
+    Document checks that cannot run with the available environment.
+
+[x] P0.6 Record baseline quality and speed.
+    OCR: correct/wrong/unknown per essential field and provider.
+    Timing: warm/cold, text/image, dimensions, sample count, stages available.
+    Test help, overview, pending, and a mutation; separate DB time from delivery.
+    Keep failed samples visible.
+
+[x] P0.7 Audit the zero-cost envelope.
+    Read actual account plans/usage without exposing credentials.
+    Verify current official provider limits at implementation time; date sources.
+    Measure ledger/index bytes per record, event/log growth, OCR CPU/memory,
+    and LINE message count per journey including ack/result/retries.
+    Produce conservative capacity estimates and warning/stop thresholds.
+    No paid subscriptions, permanent keep-warm traffic, or paid backups.
+
+[x] P0.8 Record Phase 1 design decisions.
+    Durable receipt, ordering, deduplication, rate accounting, saved results,
+    read-only fast path, and unknown reply acceptance.
+    Record later choices without blocking unrelated baseline collection.
+
+Exit gate:
+- Every supported feature maps to acceptance cases and a phase.
+- Known problems have evidence or reproduction tasks.
+- Test results distinguish failures, skips, and environment blockers.
+- Fixture coverage and actual/free quota evidence are recorded.
+- Baseline defects owned by later phases may remain, but must be documented.
+- Vercel billing usage unavailable through the CLI/API is recorded as unknown, never
+  interpreted as zero; later phases must use observed application metrics and the
+  authorized dashboard when available.
+
+
+7. PHASE 1 — RELIABLE PROCESSING AND RESPONSES
+=============================================
+Entry: Phase 0 matrix and event/delivery decisions.
+Files: webhook route, lib/jobs.ts, lib/line.ts, lib/access.ts, worker route,
+queue/access migrations, tests, scripts/validate-line.ts.
+Output: Durable, replay-safe processing with intentional responses.
+
+[ ] P1.1 Unify durable acceptance and ordering.
+    Deduplicate by event ID before repeating business effects.
+    Persist image acceptance before claiming it has been accepted.
+    Apply a common per-user policy to queued images and inline mutations.
+    An immediate answer after an image must not bind to an unrelated older draft.
+    Allow read-only fast paths only when their data semantics remain correct.
+    Record deterministic event ordering rather than relying on HTTP scheduling.
+
+[ ] P1.2 Separate acceptance, business completion, and delivery.
+    Reuse/extend jod_events and jod_mutations with additive migrations as needed.
+    Persist recoverable business results before outbound delivery.
+    If ack/result use separate delivery slots, their stable retry keys must differ.
+    Completion must match the active lease token; stale workers cannot finalize
+    or overwrite a newer worker's result.
+
+[ ] P1.3 Implement structured error classification.
+    Check exact LINE behavior against official documentation during implementation.
+    Invalid Flex payload -> plain-text fallback from the same saved business result.
+    Invalid/expired reply token -> designed push fallback, no repeated mutation.
+    Auth/config failure -> actionable failure, not repeated blind retries.
+    Rate/quota failure -> distinguish throttling from depleted allowance.
+    Timeout -> potentially unknown acceptance, not proof the message was rejected.
+    DB transient error -> retry the correct stage, preserving completed effects.
+    Mark done only after the defined delivery success/acceptance condition.
+
+[ ] P1.4 Repair persisted invalid responses safely.
+    Store renderer version and sufficient safe result data when necessary.
+    Repair tooling previews criteria/count and selects known affected jobs.
+    Regenerate delivery content without re-confirming/re-editing/re-deleting.
+    Preserve retry identity after uncertain acceptance.
+    For definitively rejected content, follow documented retry-key rules and
+    record any replacement attempt; do not assume arbitrary key reuse is safe.
+    Never clear the entire queue to repair one card.
+
+[ ] P1.5 Make rate limiting visible and replay-aware.
+    Recommended: duplicate delivery of one logical event consumes allowance once.
+    Send a brief bounded Thai notice when the user is limited and transport permits.
+    Throttle notices themselves and await/schedule delivery reliably.
+    Test boundary counts, duplicate events, and the next time window.
+
+[ ] P1.6 Add privacy-conscious timing.
+    Measure received, authorized, durable accepted, queued, claimed, downloaded,
+    processed, rendered, LINE accepted, and retry durations.
+    Log IDs/stages/error classes, not secrets, images, or full OCR text.
+    Bound retention. Do not duplicate whole private results in metrics.
+    Keep server-to-LINE and user-visible latency as separate measurements.
+
+[ ] P1.7 Expand LINE validation coverage.
+    Validate overview, today/month, review, edit, pending, delete/clear, export,
+    menus, quick replies, and postbacks.
+    Include empty states, long Thai/English text, max supported items/categories.
+    Batch within current documented API limits.
+    Use validation endpoints; do not send fixtures to real users.
+
+[ ] P1.8 Test crash, lease, and concurrency behavior.
+    Crash before commit, after commit/before send, and after possible remote acceptance.
+    Expired lease can be reclaimed; stale lease cannot finalize current work.
+    One user's slow OCR must not globally lock unrelated users.
+    Permanent failures must not spin forever or starve later work.
+
+Required acceptance:
+  EVT-01 Duplicate webhook -> one logical business effect.
+  EVT-02 Image then answer -> correct draft and ordering.
+  EVT-03 Acceptance DB failure -> no false durable-success claim.
+  EVT-04 Confirmation committed, send failed -> one expense after retry.
+  EVT-05 Invalid Flex -> correct plain text without rerunning mutation.
+  EVT-06 Old invalid saved response -> targeted regeneration works.
+  EVT-07 Rate limit -> bounded notice, then normal recovery.
+  EVT-08 Lease expiry -> correct reclaim and no stale completion.
+  EVT-09 Ambiguous reply acceptance -> documented, recorded outcome.
+  EVT-10 Unauthorized/revoked user -> no business execution or data disclosure.
+
+Proposed performance target, not proven capability:
+Warm simple commands/image ack p95 server-to-LINE acceptance <= 2 seconds.
+Report cold path separately. If free infrastructure cannot achieve the target,
+record the bottleneck/options and obtain a scope/target resolution.
+Do not buy capacity or quietly weaken correctness.
+
+Exit gate:
+- All required event cases pass in isolation.
+- No unintended silent supported-command path when transport is available.
+- Invalid cards have fallback; cached-response repair has been demonstrated.
+- Effects are replay-safe and delivery ambiguity is explicitly handled.
+- Timing/failures are diagnosable without exposing private payloads.
+
+
+8. PHASE 2 — ACCURATE, FREE OCR
+===============================
+Entry: Reliable Phase 1 processing/timing and Phase 0 ground truth.
+Files: lib/ocr.ts, lib/slip-parser.ts, lib/domain.ts, lib/qr.ts,
+tests/ocr.test.ts, inspection/benchmark scripts.
+Output: Measured recipient, date/time, and amount extraction for four providers.
+
+[ ] P2.1 Expand and split fixtures.
+    Aim for at least 10 independent originals per provider when available.
+    Separate tuning and held-out acceptance by original slip/layout.
+    Resizes of one original are variants, not independent samples.
+    Include mixed-script/multi-line names, varied amounts/dates, LINE compression,
+    unsupported images, and the user's failed examples.
+    Report insufficient coverage; request only missing variants.
+
+[ ] P2.2 Separate extraction stages.
+    Decode/rotate/bound -> detect provider/layout -> extract candidates
+    -> validate -> select reliable values or unknown -> normalize.
+    Track evidence source for each essential field.
+    Do not silently overwrite one candidate with a contradictory crop result.
+    Avoid elaborate scoring without evidence of need.
+    Tesseract confidence is not a calibrated correctness probability.
+
+[ ] P2.3 Fix amount extraction.
+    Prefer labeled amount/verified layout region.
+    Exclude fee, balance, account number, reference, and unrelated numbers.
+    Test lost digits (99.00 vs 9.00), commas, zero fees, and large values.
+    Keep integer-satang checks and Paotang net-payment semantics.
+    Do not automatically add transfer fees.
+
+[ ] P2.4 Fix dates/times.
+    Handle observed Thai month forms, BE/CE years, numeric separators, and time labels.
+    Validate actual calendar/time after extraction.
+    Prove any reference-derived fallback for its specific format or return unknown.
+    Do not turn an ID resembling a date into asserted transaction time.
+
+[ ] P2.5 Fix recipients.
+    Anchor to destination labels such as "ไปยัง" or "ไปที่".
+    Separate sender, recipient, bank, account number, Biller ID, and reference.
+    Preserve meaningful mixed Thai/English names and aliases.
+    Avoid cleanup that erases meaningful name characters.
+    Assert expected recipient text, not merely a nonempty string.
+
+[ ] P2.6 Close provider-specific problems.
+    MAKE: date/time and amount digit loss; prevent unreliable crop overwrites.
+    BBL: amount vs fee/reference, destination names including TRUEAPP.
+    SCB: date/time, mixed-script/multi-line payee, destination label anchoring.
+    Paotang: protect existing correctness and subsidy handling.
+    Fixed-coordinate fallback only for recognized, tested layouts.
+
+[ ] P2.7 Make uncertainty usable.
+    Ask only for the missing/conflicting essential field.
+    Unsupported, undecodable, and oversized images get clear Thai next steps.
+    Never invent values or ask for mandatory optional description.
+    Review still requires user confirmation even when OCR is confident.
+    In this phase, verify extraction outcomes and the correction-message contract.
+    The complete required-field change across UI, legacy drafts, and SQL belongs
+    to P3.1; do not claim that end-to-end confirmation is fixed by OCR alone.
+
+[ ] P2.8 Optimize measured bottlenecks within zero budget.
+    Time download, decode, QR, language setup, worker init, full OCR, each crop,
+    each retry, and DB separately.
+    Stop unnecessary OCR passes once reliable essential fields are available.
+    Bound dimensions, runtime, retries, memory, and concurrency.
+    Worker reuse requires bounded access, parameter isolation, failure disposal,
+    and cleanup; do not share mutable worker settings across concurrent jobs.
+    Rerun all providers after each meaningful optimization.
+
+[ ] P2.9 Evaluate free alternatives only if needed.
+    Benchmark preprocessing, custom parsers, and free engines on the same held-out data.
+    Check license, runtime/memory, packaging, hosting compatibility, and accuracy.
+    Zero API price does not imply zero compute cost.
+    No paid fallback or external upload without the D03 decision.
+
+Measure:
+- Amount: exact satang.
+- Date/time: correct instant at the precision visible on the slip.
+- Recipient: meaningful expected text after documented conservative normalization
+  (e.g. Unicode/whitespace), not normalization that erases name differences.
+- Report correct/wrong/unknown separately for each field/provider/layout.
+- Unknown is safer than a wrong value but does not count as correct extraction.
+- No account/ID presented as a recipient in the acceptance set.
+
+Proposed targets:
+Clear supported slips: amount >=98%, date/time >=95%, recipient >=90% exact match.
+Warm image end-to-end p95 <=10 seconds; report cold separately.
+With 10 images, 98% requires 10/10; do not round 9/10 into compliance.
+Small samples are pilot evidence, not strong reliability guarantees.
+
+Exit gate:
+- Reproducible user failures have regressions.
+- All four providers have quality/unknown/time reports with sample counts.
+- Paotang has no unexplained regression.
+- Essential unknowns trigger valid correction.
+- Missed targets require an explicit scope/target resolution, not silent downgrading.
+
+
+9. PHASE 3 — COMPLETE EXPENSE LIFECYCLE
+=======================================
+Entry: Phase 1 semantics and Phase 2 extraction contract.
+Files: lib/bot.ts, lib/domain.ts, lib/messages.ts, mutation RPCs/migrations,
+SQL/domain/flow tests.
+Output: Correct create, confirm, edit, cancel, batch, and delete behavior.
+
+[ ] P3.1 Align required fields in all layers.
+    Update missingField/getMissingFields, review/questions, manual entry,
+    and SQL confirmation together.
+    Remove mandatory description; retain existing optional descriptions.
+    Distinguish image recipient from explicit unspecified manual recipient.
+    Handle old drafts/edit_field values waiting for now-optional data.
+    Direct RPC confirmation must enforce the same essential rules.
+
+[ ] P3.2 Settle lifecycle and editing semantics.
+    Define draft -> confirmed, draft -> cancelled, confirmed -> edited/deleted.
+    Recommended editing: keep the last confirmed version in totals until the
+    replacement is confirmed; cancel-edit preserves the saved version.
+    Current reopen-to-draft behavior differs. Record the selected representation
+    before implementation; opening an edit menu must not accidentally lose totals.
+    Use the simplest design that enforces version and ownership.
+
+[ ] P3.3 Make draft selection deterministic.
+    One pending draft: direct answers apply there.
+    Multiple drafts: select a stable record before applying an answer.
+    A displayed numeric index must map to the shown snapshot, not a later sorted list.
+    Stable short codes are acceptable if simpler.
+    Menu/help/report text must not become a field answer.
+
+[ ] P3.4 Add pending pagination and accurate count.
+    Use a true count, not a limited page length.
+    Bounded pages need stable navigation and access to every pending record.
+    Do not hide records after ten cards or call a 20-row fetch the full set.
+
+[ ] P3.5 Repair batch idempotency.
+    Reproduce E04 first.
+    Recommended: persist a fixed snapshot of target IDs/versions and use a stable
+    child key per event + action + draft. Alternatively, use a dedicated batch RPC
+    with persisted per-item results.
+    Never generate new random mutation keys on retry.
+    Never redefine a retried batch by querying a newly changed pending list.
+    Count actual result codes, not text containing a success phrase.
+    Report succeeded/skipped/failed; incomplete drafts are skipped, not confirmed.
+    Recommended "all": full pending snapshot processed in bounded batches,
+    with truthful progress and resumable per-item outcomes.
+
+[ ] P3.6 Test conflicts and isolation.
+    Old button, double click, concurrent edit/confirm, duplicate event,
+    deleted target, guessed record ID, and cross-user replay key.
+    Stale actions cannot overwrite a later version or leak another user's result.
+
+[ ] P3.7 Define duplicates across lifecycle changes.
+    Same image, resized QR, provider/reference, cancelled draft, deleted record,
+    and resend after clear-history all need explicit expectations.
+    Recommended: no duplicate live expense; deliberate new resend after deletion
+    may create a new draft requiring confirmation.
+    Distinguish a new user message from replay of an old event.
+
+[ ] P3.8 Implement deletion without restore.
+    Show target/scope -> confirm -> delete with ownership/version checks.
+    Remove recovery menu/help/promises.
+    Old recovery commands explain unavailability instead of invoking the old RPC.
+    Retire recovery RPC access/legacy soft-delete behavior through scoped migration.
+    Do not purge production leftovers as incidental cleanup.
+
+[ ] P3.9 Prevent resurrection after clear-history.
+    Use an ordering/fencing/generation or equivalent locking rule.
+    Check the rule again before a worker commits new writes.
+    A worker holding an old payload must not recreate cleared data.
+    Keep only minimal bounded replay metadata needed for this guarantee.
+
+[ ] P3.10 Keep merchant suggestions optional and private.
+    Use only the same user's confirmed history.
+    Suggestions must not override the OCR payee or become confirmation prerequisites.
+
+Required acceptance:
+  EXP-01 Three-field slip, no note -> review and successful SQL confirmation.
+  EXP-02 Missing essential field -> only essential correction asked.
+  EXP-03 Manual unspecified payee/no description -> confirmable.
+  EXP-04 Legacy draft waiting for description -> no dead end.
+  EXP-05 Stale/concurrent actions -> no overwrite/double total.
+  EXP-06 Batches 1, 2, 10, 21+ -> exact per-record results including partial retry.
+  EXP-07 Complete/incomplete mix -> correct skip count and ledger total.
+  EXP-08 New draft after display -> selection still targets intended record.
+  EXP-09 Delete replay/clear race -> no resurrection/cross-user effect.
+  EXP-10 Edit cancel/confirm -> totals match the documented policy.
+
+Exit gate:
+UI/domain/SQL agree; message counts equal persisted effects; batch replay is correct;
+all drafts are reachable; deletion is confirmed and has no restore promise.
+
+
+10. PHASE 4 — CORRECT REPORTS
+==============================
+Entry: Phase 3 lifecycle and D01/D06 semantics.
+Files: report code in lib/bot.ts, lib/messages.ts, jod_summary RPC, report tests.
+Output: Overview/today/month/recent agree with a deterministic reference ledger.
+
+[ ] P4.1 Build a reference ledger fixture.
+    Multiple users/categories, confirmed/draft/cancelled/deleted, edits,
+    backdated transactions, Bangkok midnight/month/year boundaries.
+    Use a controlled clock rather than expected values coupled to today's date.
+
+[ ] P4.2 Define report meanings.
+    Bangkok [from, until) boundaries.
+    Proposed month view: month start through end of today; exclude future dates
+    beyond today. Verify/document this choice.
+    Recent transactions: occurred_at plus stable tie-breaker.
+    "Last saved" management may use confirmed_at; label distinctly.
+    Daily monthly average: total divided by elapsed days including today.
+
+[ ] P4.3 Make every number truthful.
+    Only current confirmed, nondeleted records under the edit policy.
+    Actual pending count, not page size.
+    Category rows reconcile to the headline; aggregate hidden categories or paginate.
+    Never present the first six categories as the complete breakdown.
+
+[ ] P4.4 Separate report data from rendering.
+    One tested report object feeds Flex and plain-text fallback.
+    Parallelize independent queries only if consistency remains correct.
+    If concurrent edits cause mismatched totals/details, use a consistent query/RPC.
+
+[ ] P4.5 Correct naming and compatibility.
+    Expense-only labels; legacy text aliases still work.
+    No unimplemented income/balance claims.
+
+[ ] P4.6 Validate extremes.
+    Empty, long mixed-script names, missing optional descriptions, large numbers,
+    many categories, and edited/deleted transactions.
+    Use recipient/generic label when description is absent.
+    Validate payloads and schedule actual-phone review.
+
+Required acceptance:
+  REP-01 Draft/cancelled/deleted excluded.
+  REP-02 Bangkok 23:59/00:00 and calendar boundaries correct.
+  REP-03 Category/headline counts and totals match to one satang.
+  REP-04 Edit/delete follows settled lifecycle.
+  REP-05 Pending >20 count correct.
+  REP-06 Empty/long payloads and fallback valid.
+  REP-07 Matching export selection reconciles; complete export closes in Phase 6.
+
+Exit gate: Deterministic ledger cases pass; cards validate; names/order match behavior.
+
+
+11. PHASE 5 — THAI INTERACTION DESIGN AND MENUS
+===============================================
+Entry: Stable commands/lifecycle/report data.
+Files: lib/messages.ts, rich-menu script/assets, app/page.tsx, public/.
+Output: Readable, coherent paths through the supported product.
+
+[ ] P5.1 Prepare wireframes as a coherent set.
+    Main menu, ack, missing-field question, review, pending page, overview,
+    empty/error state, delete, clear confirmation.
+    Four large entry points: Send slip / Add expense / View expenses / More.
+    Give slip upload primary visual weight where useful.
+    Keep secondary actions in More rather than returning to eight equal small buttons.
+
+[ ] P5.2 Standardize Thai labels and hierarchy.
+    Amount/date-time/payee first, optional detail/category afterward.
+    Confirm/save primary; edit/cancel secondary.
+    Technical versions should not dominate ordinary cards.
+    Stale actions explain how to open the current record.
+
+[ ] P5.3 Preserve navigation while entering data.
+    Menus work during active drafts and are not parsed as payee/description.
+    Optional edits never become mandatory questions.
+    Questions clearly identify the selected record and expected input.
+
+[ ] P5.4 Remove outdated promises.
+    No restore, bank verification, unlimited free capacity, or income support claims.
+    Old recovery controls fail gracefully under D05.
+    Help, menu, cards, and landing page match the command inventory.
+
+[ ] P5.5 Verify rendering and routes.
+    Small/normal phone viewports and actual LINE when available.
+    Check wrapping, mixed-script names, touch areas, and every action destination.
+    API payload validation does not establish visual readability.
+
+[ ] P5.6 Update landing page and menu release procedure.
+    Working add-friend link/QR; short three-field explanation.
+    Accurate ordinary-language image/data handling.
+    Version menu assets/config and save previous active menu ID for rollback.
+
+Exit gate:
+Slip/manual/report journeys finish without guessing commands.
+Every action works. Cards validate and required phone views have evidence.
+If phone access is unavailable, mark visual acceptance pending, not passed.
+
+
+12. PHASE 6 — DATA, ACCESS, AND ZERO-COST OPERATIONS
+===================================================
+Entry: Expense/report contracts and D02–D06.
+Files: export route, access/owner commands, jobs/maintenance/RPCs, admin scripts/docs.
+Output: Complete export, isolated users, bounded free use, actionable runbook.
+
+[ ] P6.1 Export all selected confirmed records.
+    Implement pagination/streaming appropriate to actual size.
+    Use stable ordering/boundaries and define concurrent insertion/deletion behavior.
+    Avoid offset omissions when data changes; prefer a stable cursor/snapshot strategy.
+    Compare row IDs/count/total to the reference ledger.
+    Test 0, 1, 1,001+, and the actual configured page-limit boundary.
+    Preserve UTF-8 Thai, CSV quoting/newlines, and spreadsheet formula protection.
+
+[ ] P6.2 Validate export access.
+    Malformed/missing/expired token responses are intentional.
+    Current links are bearer links: anyone possessing one can use it until invalid.
+    Do not claim that opening the URL independently authenticates its owner.
+    Invalidate/deny links as designed after clear-history/member revoke.
+    No private rows in public cache or error output.
+
+[ ] P6.3 Test full access lifecycle.
+    Owner pairing, valid/expired/used invite, revocation with queued work,
+    guessed record IDs, cross-user replay keys, exports, merchant history.
+    Check both application and SQL/RPC boundaries.
+    Service credentials do not replace explicit ownership checks.
+
+[ ] P6.4 Enforce the measured free operating envelope.
+    Update capacity with optimized OCR measurements.
+    Include DB/index/storage, logs, compute/invocations, bandwidth, LINE usage.
+    Use dated actual-account/provider evidence rather than remembered free limits.
+    Set conservative burst, concurrency, daily work, queue, and retention bounds
+    where evidence requires them.
+    Explain backpressure in Thai instead of dropping work silently.
+    No paid plans/monitoring/backups or persistent keep-warm requests.
+
+[ ] P6.5 Implement explicit retention.
+    Inspect live RETENTION_MONTHS and schedules before changing them.
+    Separate ledger, completed/dead jobs, mutation receipts, exports, invites,
+    rate counters, and diagnostics.
+    Preserve dedup/replay state for the supported retry/redelivery horizon.
+    Pruning receipts while old events can execute may repeat business effects.
+    If shortening history is needed, present measured export/retention options.
+    Cleanup needs dry-run counts and exact criteria; flexible storage requirements
+    are not permission to silently destroy existing ledger history.
+
+[ ] P6.6 Integrate deletion with active operations.
+    Clear-history races with OCR, delivery, export, and mutation replay.
+    Invalidate exports and fence older work from recreating data.
+    Retire recovery access/legacy leftovers according to the scoped Phase 3 plan.
+
+[ ] P6.7 Provide owner status and runbook.
+    Pending/processing/dead count, oldest queue age, quota state, cleanup status.
+    Distinguish busy from permanently broken.
+    Explain handling of invalid response, timeout, credentials, DB trouble,
+    depleted quota, and rollback using existing/free tools.
+    Diagnostics must remain accessible outside LINE when LINE cannot send.
+
+[ ] P6.8 Protect releases without offering deleted-expense restore.
+    Scoped export/local free backup before risky changes if available.
+    Verify a release backup in isolation if relying on it.
+    No paid PITR/backup subscriptions or promises to restore deliberate deletions.
+    No indefinite archive of private content disguised as diagnostics.
+
+Exit gate:
+Full export reconciles; cross-user paths are denied; revoke/delete races behave;
+measured pilot fits verified free limits with backpressure; retention/replay
+horizon is explicit; maintainer can repair delivery without rerunning mutation.
+
+
+13. PHASE 7 — INTEGRATED ACCEPTANCE AND STABLE RELEASE
+======================================================
+Entry: Required Phase 0–6 gates passed or explicit scoped limitation accepted.
+Output: Traceable stable expense release and rollback instructions.
+
+[ ] P7.1 Run integrated acceptance.
+    OCR/event/ledger/batch/report/delete/export/access cases.
+    Report failures/skips/environment blockers explicitly.
+
+[ ] P7.2 Verify real LINE journeys with scoped test accounts.
+    Invite -> image -> essential correction -> review -> confirm -> report.
+    Complete slip without optional detail -> direct review.
+    Manual -> edit -> export -> delete -> updated total.
+    Multiple drafts -> paginate/select -> batch -> truthful results.
+    Real messages belong to authorized acceptance, not fixture payload validation.
+
+[ ] P7.3 Recheck performance/capacity.
+    At least 30 warm text samples and a pilot minimum of 10 images/provider if available.
+    Cold samples separate; distributions, counts, failures, sizes, provider breakdown.
+    More samples are needed for strong p95 claims.
+    Do not pool providers to hide an inaccurate/slow one.
+    Include benchmark usage itself in free quotas.
+
+[ ] P7.4 Rehearse migrations and compatibility.
+    Isolated data; old app/new additive schema compatibility as designed.
+    Previous-release queued responses still deliver or have targeted repair.
+
+[ ] P7.5 Deploy and verify.
+    READY, alias, health, signature rejection, protected endpoints, cards, main journeys.
+    Record commit/deployment and pre/post metrics without private content.
+
+[ ] P7.6 Observe a bounded pilot.
+    Suggested 3–7 days of actual use, with user-agreed minimum journey count.
+    Idle calendar time is not acceptance evidence.
+    Fix blockers in their owner phase and rerun impacted regressions.
+    Optional enhancements stay in backlog.
+
+Release gate:
+- No unresolved data-loss, duplicate-ledger, cross-user, wrong-total, main-flow blocker.
+- Three-field flow works without mandatory optional questions.
+- OCR/speed/capacity targets met or explicit limitations accepted.
+- Actual LINE rendering/user acceptance recorded, not invented.
+- Known production commit, rollback path, failed-job repair instructions.
+- README/help reflect released behavior and zero-cost operating boundaries.
+
+
+14. PHASE 8 — INCOME AND LATER BACKLOG
+======================================
+Status: BACKLOG. Income is first after expense stabilization.
+Do not implement while required expense release gates remain unresolved.
+
+Finalize this sub-plan when starting income:
+[ ] P8.1 Define income fields/categories/edit/delete and report semantics.
+[ ] P8.2 Add transaction type compatibly; existing rows remain expenses.
+[ ] P8.3 Explicit income entry/review; no unsupported inference of transfer direction
+    from a slip alone without a rule and user confirmation.
+[ ] P8.4 Income/expense/net-flow reports and CSV share one ledger meaning.
+    Net cash flow is not a bank account balance without actual account tracking.
+[ ] P8.5 Extend ownership/batch/replay/edit/delete/export cases to both types.
+[ ] P8.6 Existing expense results remain unchanged for the same data before release.
+
+Later options, not current commitments:
+- Own-account transfers excluded from income/expense totals.
+- Search, custom date ranges, older-record editing.
+- Budgets, recurring entries, notifications within free quotas.
+- Private web/LIFF dashboard with explicit authentication.
+- Public signup only after a separate capacity/support/product decision.
+- Bank verification distinct from OCR/QR, only if compatible with zero budget
+  or a later explicit budget change.
+- More layouts/languages and benchmarked free OCR engines.
+
+
+15. VERIFICATION COMMANDS AND SIDE EFFECTS
+==========================================
+
+Inspect current scripts before use. These commands exist at the planning baseline;
+new tests/scripts proposed above do not exist until implemented.
+
+Read-only repository checks:
+  git status --short
+  git diff --check
+  git diff --stat
+Use scoped searches and inspect diffs before editing/staging.
+
+Local checks for application changes:
+  npm run typecheck
+  npm test
+  npm run build
+Tests can skip private image fixtures; inspect counts/output.
+Build/tests can write local generated files.
+Do not build the application merely to verify a documentation rewrite.
+
+Remote LINE validation (no chat send):
+  node --import tsx scripts/validate-line.ts
+Needs network/credentials. Expand coverage in Phase 1.
+Do not print secrets or full private fixture payloads.
+
+Database integration:
+  npm run test:db
+Touches the configured DB. Inspect rollback SQL and target first.
+Use isolated test credentials/data. Do not trust a README rollback claim without
+checking the actual SQL being executed.
+
+Application flow integration:
+  node --import tsx scripts/test-flow.ts
+Not read-only: private OCR fixture, temporary DB rows, export endpoint, cleanup.
+Verify DB/APP_URL consistency and unique test-user isolation first.
+
+Production operations, within an authorized implementation/release task:
+  npm run db:migrate                   Applies pending migrations.
+  npm run deploy                       Creates production deployment.
+  node scripts/manage.mjs status        Reads saved deployment status.
+  node scripts/manage.mjs smoke         Live checks including synthetic input.
+  npm run richmenu:apply                Changes actual OA menu.
+  node scripts/manage.mjs cron          Changes remote scheduler/config.
+  node scripts/manage.mjs maintenance   Runs cleanup AND queued work.
+Do not use maintenance as a read-only health check.
+Do not migrate/deploy/change menus for planning-only work.
+Document prerequisites and commands for any newly added scripts.
+
+Minimum regression impact:
+Event/queue -> signature, duplicate, ordering, ack, reply/push, lease, saved response.
+OCR -> four providers, exact fields/unknowns, dedup identity, runtime/memory.
+Required fields -> domain, questions, old drafts, manual, SQL confirm, batch.
+Lifecycle -> ownership/version, reports/CSV, replay, delete race.
+Reports/UI -> reference ledger, empty/long payload, validation, phone rendering.
+Access/data -> invite/revoke, cross-user replay/export, retention, active jobs.
+
+
+16. RELEASE, MIGRATION, AND ROLLBACK
+====================================
+
+Before production:
+1. Finish implementation and proportional verification.
+2. Review exact diff; preserve unrelated edits.
+3. Add migrations; never rewrite already-applied SQL files.
+4. Rehearse on isolated data; record count/total invariants.
+5. Establish compatibility and a concrete rollback route.
+
+Where necessary:
+  expand compatible schema -> deploy compatible app -> scoped backfill
+  -> verify -> retire old behavior later.
+Do not drop optional historical columns just because UI no longer requires them.
+An application rollback does not automatically roll back the database.
+
+Release:
+- Focused commit describing actual behavior.
+- Follow existing push/deploy authorization; do not request it repeatedly.
+  Respect environment/tool approval requirements that still apply.
+- Record commit, migrations, deployment/alias, menu ID if changed.
+- Do not redirect the real OA webhook to a preview merely for testing.
+- Verify READY/alias, live smoke, and affected journeys.
+- Inspect saved old responses before declaring a renderer incident solved.
+
+Rollback triggers:
+Wrong totals, duplicate effects, cross-user disclosure, data loss, main-flow outage.
+Contain failing path; revert deployment when compatible.
+Data repair must target evidenced affected records, not broad guessed cleanup.
+Never reset all queues/history as a generic rollback.
+Restore the saved rich-menu configuration/ID if needed.
+
+
+17. PROGRESS RECORDS, HANDOFF, AND FIRST EXECUTION STEPS
+=======================================================
+
+One primary phase at a time, split into reviewable work items.
+Close with evidence, not blanket "tests passed".
+A reproduced regression can reopen a closed phase; trace affected dependencies.
+
+Phase completion record:
+  Phase/status:
+  Start/completion date:
+  Approved scope and decision IDs:
+  Completed work-item IDs:
+  Behavior changed:
+  Commit/migrations/deployment:
+  Tests passed/failed/skipped/environment-blocked, commands and evidence:
+  Dataset/sample counts and measurements:
+  Production/manual acceptance:
+  Known limitations and why they do/do not block:
+  Rollback:
+  Next item:
+
+Handoff for another model/session:
+  Active phase and exact unfinished item:
+  Branch/commit and dirty files; user-owned vs agent-owned changes:
+  Approved decisions (do not re-ask D01–D06):
+  Completed work and checks already run:
+  Failed/pending checks and reproduction:
+  Environment constraints without secret values:
+  Outstanding user questions:
+  Next exact command/edit and expected result:
+  Production state and outstanding jobs/migrations:
+
+When implementation is requested:
+1. Read plan/repository instructions and inspect git status.
+2. Reinspect Phase 0 files; do not reset to the planning baseline.
+3. Create acceptance/decision/baseline artifact structure.
+4. Inventory private fixtures and ground truth without publishing them.
+5. Audit test side effects/targets before integration checks.
+6. Measure baseline and actual free limits; assign defects to phases.
+7. Close Phase 0 with evidence, then start Phase 1 within approved scope.
+
+Initial effort sizing, not delivery dates:
+Phase 0 small/medium; 1 large; 2 large and fixture-dependent; 3 large;
+4 medium; 5 medium; 6 medium/large; 7 medium plus actual-use observation.
+Estimate calendar time after Phase 0; do not invent dates without evidence.
+
+Suggested kickoff instruction for the implementing model:
+  Read plan.txt and applicable repository instructions. Execute Phase 0 using the
+  approved decisions. Create the acceptance matrix and baseline artifacts, inspect
+  test side effects, and record real results without changing production behavior.
+  Update the phase tracker and provide the exact next task. Do not implement later
+  phases as part of this Phase 0 assignment. Ask only for missing choices that affect
+  the work; do not re-ask the approved product constraints.
+
+Decision history:
+2026-09-26: Expenses first; personal use/invited friends.
+2026-09-26: Zero budget; recipient/date-time/amount; free hosting/storage;
+            no expense restore; no automatically added transfer fees.
+2026-09-26: User approved these conclusions.
+2026-09-26: User requested this detailed English handoff for the implementing model.
+
+End of plan. Record implementation completion separately from this rewrite.

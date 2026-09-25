@@ -30,7 +30,7 @@ try{
  await processEvent(event({type:'postback',postback:{data:new URLSearchParams({action:'field',id:d.id,v:String(d.version),field:'description'}).toString()}}));
  const corrected=await processEvent(event({message:{id:randomUUID(),type:'text',text:`#${d.short_code} ค่าอาหาร`}}));
  const correctButton=confirmMessage(corrected);
- const stale=await processEvent(event({type:'postback',postback:{data:staleButton}}));assert.match(JSON.stringify(stale),/ข้อมูลมีการแก้ไขแล้ว/);assert.equal((await current()).status,'draft');
+ const stale=await processEvent(event({type:'postback',postback:{data:staleButton}}));assert.match(JSON.stringify(stale),/ปุ่มนี้เก่าแล้ว/);assert.equal((await current()).status,'draft');
  const confirmEvent=event({type:'postback',postback:{data:correctButton}});
  const saved=await processEvent(confirmEvent);assert.match(JSON.stringify(saved),/บันทึกแล้ว/);assert.equal((await current()).status,'confirmed');
  await processEvent(confirmEvent);assert.equal((await current()).status,'confirmed');
