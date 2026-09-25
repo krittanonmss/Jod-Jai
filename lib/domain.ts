@@ -63,6 +63,13 @@ export function missingField(draft: Draft): string | null {
   if (!draft.description?.trim()) return 'description';
   return null;
 }
+export function getMissingFields(draft: Draft): string[] {
+  const fields: string[] = [];
+  if (draft.amount_satang === null || draft.amount_satang <= 0) fields.push('amount');
+  if (!draft.occurred_at) fields.push('date');
+  if (!draft.description?.trim()) fields.push('description');
+  return fields;
+}
 export function money(amount: number): string {
   return (amount / 100).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }

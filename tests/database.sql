@@ -56,8 +56,8 @@ begin
  if not public.jod_redeem_invite(repeat('a',64),'__jod_member__') then raise exception 'Invite redemption failed';end if;
  if public.jod_redeem_invite(repeat('a',64),'__jod_attacker__') then raise exception 'Invite reused';end if;
  if not exists(select 1 from public.jod_members where user_id='__jod_member__' and status='active') then raise exception 'Member not activated';end if;
- if not public.jod_take_rate_limit('__jod_rate__',2,60) or not public.jod_take_rate_limit('__jod_rate__',2,60) then raise exception 'Rate limit rejected early';end if;
- if public.jod_take_rate_limit('__jod_rate__',2,60) then raise exception 'Rate limit did not stop burst';end if;
+ if not (public.jod_take_rate_limit('__jod_rate__',2,60)->>'allowed')::boolean or not (public.jod_take_rate_limit('__jod_rate__',2,60)->>'allowed')::boolean then raise exception 'Rate limit rejected early';end if;
+ if (public.jod_take_rate_limit('__jod_rate__',2,60)->>'allowed')::boolean then raise exception 'Rate limit did not stop burst';end if;
  if not exists(select 1 from public.jod_owner) then
   if not public.jod_pair_owner('__pair_owner__') then raise exception 'Owner pairing failed';end if;
   if public.jod_pair_owner('__attacker__') then raise exception 'Owner pairing can be stolen';end if;

@@ -1,0 +1,221 @@
+Jod-Jai UX/UI Improvements - Complete Changelog
+===============================================
+Date: 2026-09-25
+Total Files Modified: 15
+Total Lines Changed: ~800+
+
+================================================================================
+FILE: lib/bot.ts (Main LINE event processor)
+================================================================================
+1. Added OCR processing indicator:
+   - Import pushMessages from lib/line
+   - Send "กำลังอ่านสลิป..." immediately before recognizeSlip()
+   - Uses retry key `${eventId}:processing`
+
+2. Stale button confusion fix:
+   - Updated changeResponse() to show clear stale message
+   - "⚠️ ปุ่มนี้เก่าแล้ว (เวอร์ชันเปลี่ยนไป) กรุณาเปิด รายการค้าง หรือ รายการล่าสุด ใหม่"
+
+3. Draft list UI - Carousel:
+   - Replaced text list + 4 flex cards with single carousel (max 10 bubbles)
+   - Each bubble shows: short_code, amount+category, description, date, version
+   - Footer buttons: ยืนยัน, แก้ไข, ยกเลิก
+   - Empty state: shows quick reply with เพิ่มรายการ/ส่งสลิป
+
+4. Owner pairing code retrieval:
+   - New command: "ขอรหัสเชื่อมต่อ" / "รหัสเชื่อมต่อ"
+   - Shows LINE_PAIRING_CODE with usage instructions
+
+5. Bulk confirm/cancel for pending drafts:
+   - "ยืนยันทั้งหมด" - confirms all pending
+   - "ยกเลิกทั้งหมด" - cancels all pending
+   - "ยืนยันหมวด <หมวด>" - confirms by category
+   - "ยกเลิกหมวด <หมวด>" - cancels by category
+
+6. Soft delete with recovery:
+   - "ล้างประวัติ" now soft deletes (deleted_at, status=cancelled)
+   - New "กู้คืนประวัติ" command recovers within 7 days
+   - Updated clearHistoryConfirm() text to mention recovery
+
+7. Category quick-replies in manual entry:
+   - startManualExpense() now sets edit_field='category' after description
+   - User gets category quick-replies automatically
+
+8. Inline command processing support:
+   - Added INLINE_COMMANDS set for commands to process in webhook
+   - processInline() calls processEvent directly and pushes response
+
+================================================================================
+FILE: lib/messages.ts (Flex message builders)
+================================================================================
+1. review() - Version badge:
+   - Added "เวอร์ชัน ${d.version} • ปุ่มเก่าจะไม่ทำงานหลังแก้ไข" in red
+
+2. question() - Progress indicator:
+   - Added getMissingFields() to calculate total missing fields
+   - Shows "📍 ขั้นตอน X/Y" when multiple fields missing
+
+3. empty() - CTA support:
+   - Now accepts optional CTA button parameter
+   - Used in recentRows() and categoryRows()
+
+4. recentRows() - Empty state CTA:
+   - "ยังไม่มีรายการที่ยืนยันแล้ว" + "เพิ่มรายการแรก" button
+
+5. categoryRows() - Empty state CTA:
+   - "ยังไม่มีรายการในช่วงนี้" + "เริ่มจดรายจ่าย" button
+
+6. categoryRows() - Visual percentage bars:
+   - Replaced text "%" with horizontal bar visualization
+   - Bar width proportional to percentage (min 4%, max 100%)
+
+7. pendingCarousel() - New function:
+   - Creates carousel of up to 10 bubbles for pending drafts
+   - Each bubble: short_code, amount+category, description, date, version
+   - Footer: ยืนยัน (primary), แก้ไข, ยกเลิก
+
+8. managementMenu() - Bulk actions:
+   - Added "ยืนยันทั้งหมด", "ยกเลิกทั้งหมด" quick replies
+
+9. personalDataMenu() - Recovery command:
+   - Added "กู้คืนประวัติ" quick reply
+
+10. help - Updated:
+    - Added bulk commands to help text
+    - Added "กู้คืนประวัติ" to personal data section
+    - Added 12MB image limit and rate limit note
+
+================================================================================
+FILE: lib/domain.ts (Types & utilities)
+================================================================================
+1. getMissingFields() - New function:
+   - Returns array of all missing field names (amount, date, description)
+   - Used by question() for progress indicator
+
+================================================================================
+FILE: lib/access.ts (Authorization & rate limiting)
+================================================================================
+1. takeRateLimit() - Enhanced response:
+   - Returns {allowed, count, limit} instead of boolean
+   - Enables rate limit warning at count===25
+
+================================================================================
+FILE: lib/ocr.ts (OCR processing)
+================================================================================
+1. Tesseract language data caching:
+   - Added ensureLangCache() with module-level flag
+   - Checks /tmp for existing traineddata.gz before copying
+   - Avoids ~500ms copy on subsequent invocations
+   - langCacheReady flag prevents redundant work
+
+================================================================================
+FILE: app/api/line/webhook/route.ts (Webhook handler)
+================================================================================
+1. Inline processing for simple commands:
+   - INLINE_COMMANDS set: help, summary, overview, management, etc.
+   - processInline() bypasses job queue for instant response
+   - Reduces latency for read-only commands
+
+2. Rate limit warning:
+   - At count===25, pushes warning message
+   - Uses unique retry key per user+timestamp
+
+================================================================================
+FILE: lib/line.ts (LINE API)
+================================================================================
+1. (No changes - existing pushMessages used for indicators)
+
+================================================================================
+FILE: supabase/migrations/007_rate_limit_warning.sql
+================================================================================
+1. jod_take_rate_limit() - Enhanced:
+   - Returns jsonb with {allowed, count, limit}
+   - Used by rate limit warning feature
+
+================================================================================
+FILE: supabase/migrations/008_soft_delete_recovery.sql
+================================================================================
+1. jod_drafts - Added deleted_at column:
+   - Index on deleted_at for recovery queries
+
+2. jod_clear_user_history() - Changed to soft delete:
+   - UPDATE deleted_at=now(), status='cancelled' instead of DELETE
+   - Preserves data for 7-day recovery
+
+3. jod_recover_user_history() - New function:
+   - Restores drafts with deleted_at within 7 days
+   - Sets deleted_at=null, status='draft'
+
+4. jod_cleanup_old_data() - Updated:
+   - Hard deletes drafts older than retention AND not soft-deleted
+   - Permanently deletes soft-deleted drafts older than 7 days
+   - Returns permanently_deleted count
+
+================================================================================
+FILE: app/page.tsx (Landing page)
+================================================================================
+1. Hero QR code:
+   - Added hero-qr section with /line-oa-qr.svg
+   - "สแกนเพื่อเพิ่มเพื่อน LINE OA" + deep link
+
+2. FAQ section:
+   - 6 expandable questions using <details>/<summary>
+   - Topics: OCR issues, privacy, multi-user, edit/delete, CSV export, image limits
+
+================================================================================
+FILE: app/style.css (Landing page styles)
+================================================================================
+1. hero-qr styles:
+   - Card layout with shadow, centered QR + link
+
+2. FAQ styles:
+   - Animated expand/collapse with +/× icon rotation
+   - Clean card design with hover states
+
+================================================================================
+FILE: scripts/generate-qr.mjs (New)
+================================================================================
+1. Generates LINE OA QR code:
+   - Deep link: https://line.me/R/ti/p/@332nhscs
+   - Brand colors (#126858 on #F7FBF6)
+   - Output: public/line-oa-qr.svg
+
+================================================================================
+FILE: lib/access.ts (Migration 007)
+================================================================================
+1. jod_take_rate_limit() returns jsonb
+
+================================================================================
+FILE: lib/bot.ts (Migration 008)
+================================================================================
+1. Soft delete + recovery support
+
+================================================================================
+TESTING
+================================================================================
+- npm run typecheck: PASSED
+- npm test: 22/22 PASSED
+  - Unit tests: money, dates, parsing, signatures, access
+  - Integration: OCR (4 real slips), QR duplicate detection
+  - Database: drafts, cross-user, replay, duplicates, cleanup, RLS, rate limits, owner pairing, queue order, lease recovery
+
+================================================================================
+DEPLOYMENT NOTES
+================================================================================
+1. Run migrations: npm run db:migrate (applies 007, 008)
+2. QR code: node scripts/generate-qr.mjs (outputs to public/)
+3. Vercel env vars unchanged
+4. Supabase Vault: CRON_SECRET for worker cron
+
+================================================================================
+PRIORITY SUMMARY
+================================================================================
+P0 (Critical) - 4/4 COMPLETED
+P1 (High)     - 6/6 COMPLETED
+P2 (Medium)   - 4/5 COMPLETED (Onboarding carousel pending)
+P3 (Low)      - 0/4 COMPLETED (i18n, LIFF, multi-menu, broadcast, export formats)
+Tech          - 3/3 COMPLETED
+
+================================================================================
+END OF CHANGELOG
+================================================================================

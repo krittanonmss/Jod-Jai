@@ -1,4 +1,4 @@
-import { Draft, displayDate, missingField, money, categories } from './domain';
+import { Draft, displayDate, missingField, getMissingFields, money, categories } from './domain';
 import type { Message } from './line';
 export const text = (value:string):Message => ({type:'text',text:value});
 type SummaryRow={category:string;total_satang:number;entries?:number};
@@ -14,17 +14,34 @@ function row(label:string,value:string,color='#222222'):Record<string,unknown>{r
  {type:'text',text:label,size:'sm',color:'#55736D',flex:5,wrap:true},
  {type:'text',text:value,size:'sm',color,align:'end',flex:4,wrap:true},
 ]};}
-function empty(value:string):Record<string,unknown>{return {type:'text',text:value,size:'sm',color:'#7C8A86',wrap:true};}
+function empty(value:string, cta?:{label:string,text:string}):Record<string,unknown>{
+  if(cta){
+    return {type:'box',layout:'vertical' as const,spacing:'sm' as const,contents:[
+      {type:'text',text:value,size:'sm',color:'#7C8A86',wrap:true},
+      {type:'button',style:'primary' as const,action:{type:'message',label:cta.label,text:cta.text}}
+    ]};
+  }
+  return {type:'text',text:value,size:'sm',color:'#7C8A86',wrap:true};
+}
 function recentRows(rows:Draft[],limit:number):Record<string,unknown>[] {
- if(!rows.length)return [empty('ยังไม่มีรายการที่ยืนยันแล้ว')];
- return rows.slice(0,limit).map(d=>row(`${d.description||d.recipient||'ไม่ระบุ'} · ${d.category}`,money(d.amount_satang||0)+' บาท','#163D37'));
+  if(!rows.length)return [empty('ยังไม่มีรายการที่ยืนยันแล้ว',{label:'เพิ่มรายการแรก',text:'เพิ่มรายการ'})];
+  return rows.slice(0,limit).map(d=>row(`${d.description||d.recipient||'ไม่ระบุ'} · ${d.category}`,money(d.amount_satang||0)+' บาท','#163D37'));
 }
 function categoryRows(rows:SummaryRow[],total:number):Record<string,unknown>[] {
- if(!rows.length)return [empty('ยังไม่มีรายการในช่วงนี้')];
- return rows.slice(0,6).map(r=>{
-  const pct=total>0?` · ${Math.round(Number(r.total_satang)*100/total)}%`:'';
-  return row(`${r.category}${pct}`,money(Number(r.total_satang))+' บาท','#163D37');
- });
+  if(!rows.length)return [empty('ยังไม่มีรายการในช่วงนี้',{label:'เริ่มจดรายจ่าย',text:'เพิ่มรายการ'})];
+  return rows.slice(0,6).map(r=>{
+    const pct=total>0?Math.round(Number(r.total_satang)*100/total):0;
+    const barWidth=Math.max(4,Math.round(pct/100*100));
+    return {
+      type:'box',layout:'vertical' as const,spacing:'xs' as const,contents:[
+        row(`${r.category} · ${pct}%`,money(Number(r.total_satang))+' บาท','#163D37'),
+        {type:'box',layout:'horizontal' as const,contents:[
+          {type:'box',layout:'horizontal' as const,width:`${barWidth}%`,backgroundColor:'#126858',cornerRadius:'sm' as const,height:'6px'},
+          {type:'box',layout:'horizontal' as const,flex:1}
+        ]}
+      ]
+    };
+  });
 }
 export function summaryCard(options:SummaryCardOptions):Message {
  const contents:Record<string,unknown>[]=[
@@ -68,29 +85,34 @@ export function summary(d:Draft):string {
  (d.fee_satang?`\nค่าธรรมเนียมในสลิป: ${money(d.fee_satang)} บาท (แสดงแยกจากยอดจ่าย)`: '');
 }
 export function question(d:Draft, field:string):Message {
- const prompts:Record<string,string>={
-  amount:'อ่านยอดไม่ชัด กรุณาระบุยอดจ่ายจริง เช่น 96.00',
-  date:'กรุณาระบุวันที่และเวลา เช่น 2026-09-23 17:22 (เวลาไทย)',
-  description:'รายการนี้เป็นค่าอะไรครับ?', recipient:'ระบุชื่อผู้รับเงินครับ',
-  category:'เลือกหมวด: '+categories.join(', '),
- };
- const message=text(`${summary(d)}\n\n${prompts[field]||prompts.description}\nตอบได้เลยเมื่อมีรายการค้างรายการเดียว${field==='category'?' หรือเลือกจากปุ่มด้านล่าง':''}\nหากมีหลายรายการ ให้เปิด “รายการค้าง” แล้วตอบโดยขึ้นต้นด้วยหมายเลขรายการ`);
- if(field==='category')message.quickReply={items:categories.map(category=>quickMessage(category))};
- return message;
+  const prompts:Record<string,string>={
+    amount:'อ่านยอดไม่ชัด กรุณาระบุยอดจ่ายจริง เช่น 96.00',
+    date:'กรุณาระบุวันที่และเวลา เช่น 2026-09-23 17:22 (เวลาไทย)',
+    description:'รายการนี้เป็นค่าอะไรครับ?', recipient:'ระบุชื่อผู้รับเงินครับ',
+    category:'เลือกหมวด: '+categories.join(', '),
+  };
+  const missing = getMissingFields(d);
+  const currentStep = missing.indexOf(field) + 1;
+  const totalSteps = missing.length;
+  const progress = totalSteps > 1 ? `\n📍 ขั้นตอน ${currentStep}/${totalSteps}` : '';
+  const message=text(`${summary(d)}\n\n${prompts[field]||prompts.description}${progress}\nตอบได้เลยเมื่อมีรายการค้างรายการเดียว${field==='category'?' หรือเลือกจากปุ่มด้านล่าง':''}\nหากมีหลายรายการ ให้เปิด “รายการค้าง” แล้วตอบโดยขึ้นต้นด้วยหมายเลขรายการ`);
+  if(field==='category')message.quickReply={items:categories.map(category=>quickMessage(category))};
+  return message;
 }
 export function review(d:Draft):Message {
- const field=d.edit_field||missingField(d);
- if(field)return question(d,field);
- return {type:'flex',altText:`ตรวจสอบรายจ่าย ${money(d.amount_satang!)} บาท`,contents:{
-  type:'bubble',body:{type:'box',layout:'vertical',spacing:'md',contents:[
-   {type:'text',text:'ตรวจสอบก่อนบันทึก',weight:'bold',size:'lg',color:'#126858'},
-   {type:'text',text:summary(d),wrap:true,size:'sm'},
-   {type:'text',text:'รายการร่าง • ยังไม่นับรวมยอดรายจ่าย',wrap:true,size:'xs',color:'#777777'},
-  ]},footer:{type:'box',layout:'vertical',spacing:'sm',contents:[
-   actionButton('ยืนยันและบันทึก',data('confirm',d),'primary'),
-   actionButton('แก้ไข',data('edit',d)),actionButton('ยกเลิก',data('cancel',d)),
-  ]},
- }};
+  const field=d.edit_field||missingField(d);
+  if(field)return question(d,field);
+  return {type:'flex',altText:`ตรวจสอบรายจ่าย ${money(d.amount_satang!)} บาท`,contents:{
+   type:'bubble',body:{type:'box',layout:'vertical',spacing:'md',contents:[
+    {type:'text',text:'ตรวจสอบก่อนบันทึก',weight:'bold',size:'lg',color:'#126858'},
+    {type:'text',text:summary(d),wrap:true,size:'sm'},
+    {type:'text',text:'รายการร่าง • ยังไม่นับรวมยอดรายจ่าย',wrap:true,size:'xs',color:'#777777'},
+    {type:'text',text:`เวอร์ชัน ${d.version} • ปุ่มเก่าจะไม่ทำงานหลังแก้ไข`,wrap:true,size:'xs',color:'#D83E8C'},
+   ]},footer:{type:'box',layout:'vertical',spacing:'sm',contents:[
+    actionButton('ยืนยันและบันทึก',data('confirm',d),'primary'),
+    actionButton('แก้ไข',data('edit',d)),actionButton('ยกเลิก',data('cancel',d)),
+   ]},
+  }};
 }
 export function editMenu(d:Draft):Message {
  return {type:'text',text:'เลือกข้อมูลที่ต้องการแก้ไข',quickReply:{items:[
@@ -116,14 +138,14 @@ export function deleteRecordConfirm(d:Draft):Message {
  ]}}};
 }
 export function clearHistoryConfirm():Message {
- return {type:'flex',altText:'ยืนยันล้างประวัติ Jod-Jai',contents:{type:'bubble',body:{type:'box',layout:'vertical',spacing:'md',contents:[
-  {type:'text',text:'ล้างประวัติทั้งหมด?',weight:'bold',size:'lg',color:'#D83E8C'},
-  {type:'text',text:'รายการร่าง รายการที่บันทึก และประวัติการทำงานของคุณจะถูกลบ',wrap:true,size:'sm'},
-  {type:'text',text:'ดาวน์โหลด CSV ก่อนล้างได้ด้วยคำสั่ง “ส่งออกข้อมูล”',wrap:true,size:'xs',color:'#777777'},
- ]},footer:{type:'box',layout:'vertical',spacing:'sm',contents:[
-  {type:'button',style:'primary',color:'#D83E8C',action:{type:'postback',label:'ยืนยันล้างประวัติ',data:'action=clear_history',displayText:'ยืนยันล้างประวัติ'}},
-  messageButton('ยกเลิก','ช่วยเหลือ'),
- ]}}};
+  return {type:'flex',altText:'ยืนยันล้างประวัติ Jod-Jai',contents:{type:'bubble',body:{type:'box',layout:'vertical',spacing:'md',contents:[
+    {type:'text',text:'ล้างประวัติทั้งหมด?',weight:'bold',size:'lg',color:'#D83E8C'},
+    {type:'text',text:'รายการร่าง รายการที่บันทึก และประวัติการทำงานของคุณจะถูกลบ (กู้คืนได้ภายใน 7 วัน)',wrap:true,size:'sm'},
+    {type:'text',text:'ดาวน์โหลด CSV ก่อนล้างได้ด้วยคำสั่ง “ส่งออกข้อมูล”',wrap:true,size:'xs',color:'#777777'},
+  ]},footer:{type:'box',layout:'vertical',spacing:'sm',contents:[
+    {type:'button',style:'primary',color:'#D83E8C',action:{type:'postback',label:'ยืนยันล้างประวัติ',data:'action=clear_history',displayText:'ยืนยันล้างประวัติ'}},
+    messageButton('ยกเลิก','ช่วยเหลือ'),
+  ]}}};
 }
 export function exportCard(url:string,count:number):Message {
  return {type:'flex',altText:`ส่งออกข้อมูล ${count} รายการ`,contents:{type:'bubble',body:{type:'box',layout:'vertical',spacing:'md',contents:[
@@ -132,14 +154,41 @@ export function exportCard(url:string,count:number):Message {
   {type:'text',text:'ลิงก์หมดอายุภายใน 10 นาที และเปิดได้เฉพาะผู้ที่มีลิงก์',wrap:true,size:'xs',color:'#777777'},
  ]},footer:{type:'box',layout:'vertical',contents:[{type:'button',style:'primary',action:{type:'uri',label:'ดาวน์โหลด CSV',uri:url}}]}}};
 }
+export function pendingCarousel(rows:Draft[]):Message {
+  const bubbles = rows.slice(0,10).map((d) => ({
+    type:'bubble' as const,
+    body:{
+      type:'box' as const, layout:'vertical' as const, spacing:'md' as const, contents:[
+        {type:'text' as const, text:`#${d.short_code}`, weight:'bold' as const, size:'sm' as const, color:'#126858'},
+        {type:'text' as const, text:`${d.amount_satang ? money(d.amount_satang)+' บาท' : 'รอระบุยอด'} • ${d.category}`, size:'sm' as const, color:'#163D37'},
+        {type:'text' as const, text:d.description || d.recipient || 'รอรายละเอียด', wrap:true, size:'sm' as const, color:'#222222'},
+        {type:'text' as const, text:d.occurred_at ? `📅 ${displayDate(d.occurred_at)}` : '⏰ รอระบุวันเวลา', size:'xs' as const, color:'#7C8A86'},
+        {type:'text' as const, text:`เวอร์ชัน ${d.version}`, size:'xs' as const, color:'#D83E8C'},
+      ]
+    },
+    footer:{
+      type:'box' as const, layout:'vertical' as const, spacing:'sm' as const, contents:[
+        actionButton('ยืนยัน', data('confirm', d), 'primary'),
+        actionButton('แก้ไข', data('edit', d)),
+        actionButton('ยกเลิก', data('cancel', d)),
+      ]
+    }
+  }));
+  return {
+    type:'flex',
+    altText:`รายการรอการยืนยัน ${rows.length} รายการ`,
+    contents:{type:'carousel', contents:bubbles}
+  };
+}
 export function managementMenu():Message {
- return {type:'text',text:'ต้องการจัดการรายการแบบไหนครับ?',quickReply:{items:[
-  quickMessage('รายการค้าง'),quickMessage('รายการล่าสุด'),quickMessage('แก้รายการล่าสุด'),quickMessage('ลบรายการล่าสุด'),
- ]}};
+  return {type:'text',text:'ต้องการจัดการรายการแบบไหนครับ?',quickReply:{items:[
+    quickMessage('รายการค้าง'),quickMessage('รายการล่าสุด'),quickMessage('แก้รายการล่าสุด'),quickMessage('ลบรายการล่าสุด'),
+    quickMessage('ยืนยันทั้งหมด'),quickMessage('ยกเลิกทั้งหมด'),
+  ]}};
 }
 export function personalDataMenu():Message {
- return {type:'text',text:'เลือกจัดการข้อมูลหรือดูวิธีใช้ได้เลยครับ',quickReply:{items:[
-  quickMessage('ส่งออกข้อมูล'),quickMessage('ล้างประวัติ'),quickMessage('สถานะระบบ'),quickMessage('เชิญเพื่อน'),quickMessage('ผู้ใช้งาน'),quickMessage('ช่วยเหลือ'),
- ]}};
+  return {type:'text',text:'เลือกจัดการข้อมูลหรือดูวิธีใช้ได้เลยครับ',quickReply:{items:[
+    quickMessage('ส่งออกข้อมูล'),quickMessage('ล้างประวัติ'),quickMessage('กู้คืนประวัติ'),quickMessage('สถานะระบบ'),quickMessage('เชิญเพื่อน'),quickMessage('ผู้ใช้งาน'),quickMessage('ขอรหัสเชื่อมต่อ'),quickMessage('ช่วยเหลือ'),
+  ]}};
 }
-export const help = 'ส่งสลิปหรือกด “เพิ่มรายการ” เพื่อเริ่มจดรายจ่าย\nระบบจะให้ตรวจและยืนยันก่อนบันทึกเสมอ\n\nดูข้อมูล: ดูรายรับรายจ่าย / สรุปวันนี้ / สรุปเดือนนี้\nจัดการ: รายการค้าง / แก้รายการล่าสุด / ลบรายการล่าสุด\nข้อมูลส่วนตัว: ส่งออกข้อมูล / ล้างประวัติ\nเจ้าของระบบ: สถานะระบบ / เชิญเพื่อน / ผู้ใช้งาน';
+export const help = 'ส่งสลิปหรือกด “เพิ่มรายการ” เพื่อเริ่มจดรายจ่าย\nระบบจะให้ตรวจและยืนยันก่อนบันทึกเสมอ\n\nดูข้อมูล: ดูรายรับรายจ่าย / สรุปวันนี้ / สรุปเดือนนี้\nจัดการ: รายการค้าง / แก้รายการล่าสุด / ลบรายการล่าสุด / ยืนยันทั้งหมด / ยกเลิกทั้งหมด / ยืนยันหมวด <หมวด> / ยกเลิกหมวด <หมวด>\nข้อมูลส่วนตัว: ส่งออกข้อมูล / ล้างประวัติ / กู้คืนประวัติ\nเจ้าของระบบ: สถานะระบบ / เชิญเพื่อน / ผู้ใช้งาน / ขอรหัสเชื่อมต่อ\n\nข้อจำกัด: รูปสลิปต้องไม่เกิน 12 MB ส่งครบ 30 ข้อความ/นาทีจะถูกจำกัดชั่วคราว';

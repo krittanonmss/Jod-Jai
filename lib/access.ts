@@ -29,6 +29,7 @@ export async function tryJoinInvite(user:string,message:string):Promise<boolean>
  const hash=createHash('sha256').update(match[1]).digest('hex');
  const {data,error}=await db().rpc('jod_redeem_invite',{p_hash:hash,p_user:user});assertDb(error);return data===true;
 }
-export async function takeRateLimit(user:string):Promise<boolean>{
- const {data,error}=await db().rpc('jod_take_rate_limit',{p_user:user,p_limit:30,p_seconds:60});assertDb(error);return data===true;
+export async function takeRateLimit(user:string):Promise<{allowed:boolean,count:number,limit:number}>{
+  const {data,error}=await db().rpc('jod_take_rate_limit',{p_user:user,p_limit:30,p_seconds:60});assertDb(error);
+  return data as {allowed:boolean,count:number,limit:number};
 }

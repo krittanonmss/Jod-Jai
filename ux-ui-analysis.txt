@@ -1,0 +1,411 @@
+Jod-Jai UX/UI Analysis Report
+================================
+
+Generated: 2026-09-25
+Project: Jod-Jai (จดใจ) - Personal Expense Tracker via LINE OA
+
+================================================================================
+1. LINE BOT INTERACTION FLOW (Primary Interface)
+================================================================================
+
+1.1 Slip Processing Flow
+-------------------------
+Current Flow:
+1. User sends slip image
+2. OCR processes (3-10 seconds on Vercel)
+3. Draft created with whatever fields were extracted
+4. If incomplete → bot asks for missing field (text response)
+5. User replies with answer
+6. If complete → Flex confirmation card with 3 buttons: [ยืนยันและบันทึก] [แก้ไข] [ยกเลิก]
+
+UX Issues:
+
+[HIGH] No loading/processing indicator during OCR
+- User sends image → silence for 3-10s → response
+- No "กำลังอ่านสลิป..." or typing indicator
+- Users may resend or think bot is broken
+- FIX: Send immediate "รับรูปแล้ว กำลังอ่านข้อมูล..." reply, then follow up with result
+
+[HIGH] No progress feedback for multi-step confirmation
+- When draft missing multiple fields, bot asks one at a time
+- User doesn't know how many steps remain
+- FIX: Show "ขั้นตอน 2/3: ระบุวันที่" or similar progress
+
+[MEDIUM] Ambiguous error when OCR fails completely
+- "ยังระบุแบบสลิปไม่ได้ครับ รองรับเป๋าตัง, MAKE, Bangkok Bank และ SCB กรุณาส่งภาพเต็มที่ชัดเจน"
+- Doesn't tell user WHAT went wrong (blurry? wrong angle? unsupported bank?)
+- FIX: More specific guidance per failure mode
+
+[MEDIUM] No preview of extracted text before confirmation
+- User sees structured summary but not raw OCR text
+- Can't verify if "ค่าอาหารเย็น" was read as "ค่าอาหารเย็น" or "ค่าอาหารเยิ็น"
+- FIX: Add "ดูข้อความดิบ" expandable section in confirmation card
+
+[LOW] Single-message reply for image confirmation
+- When duplicate slip detected: text + review flex (2 messages)
+- LINE shows as separate bubbles, slightly disjointed
+- FIX: Combine into single flex with duplicate notice + review
+
+1.2 Manual Entry Flow ("เพิ่มรายการ")
+-------------------------------------
+Current Flow:
+1. User types "เพิ่มรายการ" or "เพิ่มรายการ 45 ค่าอาหาร"
+2. Draft created with amount/description if provided
+3. Bot asks for missing fields one by one
+4. Confirmation card
+
+UX Issues:
+
+[HIGH] No quick-reply suggestions for amount/description
+- User must type free text
+- Could suggest common amounts from history
+- FIX: Quick reply chips for recent amounts/categories
+
+[MEDIUM] Category inference only from description
+- If user enters "45" then "ร้านเจ๊" → category "อื่น ๆ"
+- Must manually select category via edit menu
+- FIX: Ask category explicitly or show quick-reply categories
+
+[LOW] No "cancel current draft" command mid-flow
+- User stuck answering questions if they change mind
+- Must complete or wait for timeout
+- FIX: Accept "ยกเลิก" at any prompt to abandon draft
+
+1.3 Draft Management (Multiple Pending Drafts)
+-----------------------------------------------
+Current Flow:
+- "รายการค้าง" shows numbered list (max 20, shows 4 review cards)
+- User replies "1 ค่าอาหาร" or "ยกเลิก 1" or "#ABCDE12345 ค่าอาหาร"
+
+UX Issues:
+
+[HIGH] Visual inconsistency: list is text, details are flex cards
+- Text list: "1. 96.00 บาท • ค่าอาหาร"
+- Then 4 separate flex cards below
+- Hard to match number to card
+- FIX: Single flex carousel or unified list with inline actions
+
+[HIGH] Max 4 review cards shown (LINE 5-message limit)
+- If 5+ drafts, user sees list but only 4 cards
+- Must remember which number = which card
+- FIX: Pagination or carousel (LINE supports 10 bubbles in carousel)
+
+[MEDIUM] No bulk actions
+- Can't "ยืนยันทั้งหมด" or "ยกเลิกทั้งหมด"
+- Must handle one by one
+- FIX: Add bulk confirm/cancel for same-category drafts
+
+[LOW] Short code format confusing
+- "ABCDE12345" - users don't know it's clickable/referenceable
+- FIX: Format as #ABCDE12345 consistently, explain in help
+
+1.4 Confirmation & Editing
+---------------------------
+Current Flow:
+- Confirmation flex card shows summary + 3 buttons
+- Edit menu: quick reply with 5 fields
+- Field edit: user types new value
+
+UX Issues:
+
+[HIGH] Stale button handling confusing
+- User edits draft → old confirmation buttons still work but show "ข้อมูลมีการแก้ไขแล้ว"
+- No visual indication buttons are stale
+- FIX: Disable old buttons (LINE doesn't support) or add version badge
+
+[MEDIUM] Edit flow requires 3 steps: edit menu → field selection → new value
+- Could be 2 steps: tap field → type value
+- FIX: Postback action directly to "awaiting input for field X"
+
+[LOW] No "undo" after confirmation
+- Once confirmed, must use "แก้รายการล่าสุด" → reopen → edit → confirm
+- FIX: Brief undo toast (LINE doesn't support) or immediate reopen option
+
+1.5 Summary & Overview Displays
+--------------------------------
+Current: Flex cards with totals, category breakdown, recent items
+
+UX Issues:
+
+[MEDIUM] "ดูรายรับรายจ่าย" shows "รายรับ: ยังไม่ได้เปิดใช้" prominently
+- Confusing - looks like feature exists but disabled
+- FIX: Hide income section entirely until implemented, or show "Coming soon" badge
+
+[MEDIUM] Monthly summary shows "เฉลี่ยต่อวัน" but daily doesn't
+- Inconsistent metrics
+- FIX: Show average in both or neither
+
+[LOW] Category rows show percentage but no visual chart
+- Text-only "%", no bar/progress visualization
+- FIX: Use flex box with width proportional to percentage
+
+[LOW] No date range selector
+- Only "วันนี้" and "เดือนนี้"
+- FIX: Add "สรุปช่วงที่กำหนด" with date picker (LIFF) or text input
+
+1.6 Destructive Actions
+------------------------
+Current: Flex confirmations for delete single, clear all history
+
+UX Issues:
+
+[HIGH] "ล้างประวัติ" deletes EVERYTHING including drafts, events, mutations
+- Warning text says "รายการร่าง รายการที่บันทึก และประวัติการทำงาน"
+- But user may not understand "mutations" = audit log
+- FIX: Explicit list: "จะลบ: รายการร่าง X รายการ, รายการยืนยัน Y รายการ, ประวัติการทำงาน"
+
+[MEDIUM] No "recently deleted" recovery
+- Accidental delete = permanent
+- FIX: Soft delete with 7-day recovery, or export-before-delete prompt
+
+================================================================================
+2. WEB LANDING PAGE (https://jod-jai.vercel.app)
+================================================================================
+
+Current: Single-page marketing site with hero, chat mockup, 3-step flow, footer
+
+UX Issues:
+
+[HIGH] No live demo / interactive preview
+- Static chat mockup only
+- Users can't try before adding LINE OA
+- FIX: Embed LIFF mini-app or animated walkthrough
+
+[HIGH] QR code to add LINE OA not prominent
+- Only text link "เปิดใน LINE ↗"
+- Mobile users must tap → switch apps → search
+- FIX: Large QR code + "สแกนเพื่อเพิ่มเพื่อน" + deep link
+
+[MEDIUM] Supported banks listed but no sample slips
+- "รองรับ เป๋าตัง · MAKE · Bangkok Bank · SCB"
+- No visual examples of accepted slip formats
+- FIX: Show thumbnail of each slip type with checkmarks
+
+[MEDIUM] No FAQ / troubleshooting section
+- Common questions: "อ่านสลิปไม่ได้", "เพิ่มเพื่อนได้ไหม", "ข้อมูลปลอดภัยไหม"
+- FIX: Expandable FAQ accordion
+
+[LOW] Thai/English language toggle missing
+- Page is Thai only
+- FIX: Add EN/TH toggle (even if bot remains Thai-only)
+
+[LOW] No privacy policy / data handling page
+- "ข้อมูลปลอดภัยไหม" - no link to policy
+- FIX: Link to privacy policy (can be simple Notion/GitHub page)
+
+================================================================================
+3. RICH MENU (LINE OA Persistent Menu)
+================================================================================
+
+Current: 8 buttons in 2x4 grid, custom SVG icons matching brand colors
+
+UX Issues:
+
+[HIGH] Button labels truncated on small screens
+- "จัดการรายการ" (6 chars) vs "สรุปเดือนนี้" (5 chars) - OK
+- But "ข้อมูลของฉัน" (5 chars) - OK
+- Actually all fit, but subtitle not visible in rich menu
+- FIX: Ensure all labels < 6 chars, test on iPhone SE / small Android
+
+[MEDIUM] No visual hierarchy - all buttons equal prominence
+- Primary actions: ส่งสลิป, เพิ่มรายการ, รายการค้าง
+- Secondary: สรุปวันนี้, สรุปเดือนนี้, ดูรายการ
+- Tertiary: จัดการรายการ, ข้อมูลของฉัน
+- FIX: Use color/position to differentiate (top row = primary)
+
+[MEDIUM] "ดูรายการ" command = "ดูรายรับรายจ่าย" (overview)
+- But label says "ดูรายการ" - ambiguous
+- FIX: Label "ภาพรวม" or "สรุปยอด" to match function
+
+[LOW] No rich menu alias/switching for different contexts
+- Could show different menu for: new user, has pending drafts, owner
+- FIX: Multiple rich menus switched via API based on user state
+
+================================================================================
+4. ERROR HANDLING & EDGE CASES
+================================================================================
+
+[HIGH] Generic "Temporarily unavailable" (503) for all webhook errors
+- User gets no feedback, message appears "sent" but no reply
+- No retry guidance
+- FIX: Distinguish error types; for rate limit → "รอสักครู่ลองใหม่", for auth → "กรุณาเชื่อมต่อบัญชีก่อน"
+
+[HIGH] Rate limit: 30 events/minute per user
+- No warning when approaching limit
+- Sudden silence when exceeded
+- FIX: Warn at 25/min "คุณส่งข้อความมากเกินไป กรุณารอสักครู่"
+
+[MEDIUM] Image size limit: 12MB hard cutoff
+- No client-side validation
+- Large photos fail silently after upload
+- FIX: Document max size; suggest compression
+
+[MEDIUM] OCR timeout / memory limit on Vercel
+- Large/high-res images may timeout
+- No fallback or guidance
+- FIX: Auto-resize before OCR (already done via sharp), but add user guidance "แนะนำภาพไม่เกิน 3MB"
+
+[LOW] Webhook redelivery handling
+- LINE retries failed webhooks
+- System uses event_id dedup but user may see duplicate processing
+- FIX: Ensure idempotency at all levels (already has jod_mutations)
+
+================================================================================
+5. ACCESSIBILITY & INCLUSIVITY
+================================================================================
+
+[HIGH] Thai-only interface
+- No English support for expats/foreigners
+- All commands, messages, errors in Thai
+- FIX: Add EN locale (i18n), detect from LINE user language
+
+[MEDIUM] No screen reader considerations for Flex messages
+- altText provided but minimal
+- Complex flex structures may not read logically
+- FIX: Test with TalkBack/VoiceOver, improve altText
+
+[LOW] Color contrast in Flex messages
+- Brand colors (#126858, #D83E8C) on white - generally OK
+- But muted grays (#7C8A86, #55736D) may fail WCAG AA
+- FIX: Verify contrast ratios, adjust if needed
+
+[LOW] Font size fixed in Flex (no user scaling)
+- LINE respects system font size partially
+- But flex text sizes are absolute (sm, xs, lg)
+- FIX: Use relative sizing where possible
+
+================================================================================
+6. ONBOARDING & FIRST-TIME USER EXPERIENCE
+================================================================================
+
+[HIGH] No guided onboarding flow
+- New user adds OA → gets "เชื่อมบัญชี Jod-Jai เรียบร้อยแล้ว ✅" + help text
+- No interactive tutorial
+- FIX: Step-by-step carousel: "ลองส่งสลิปดู" → "ตอบคำถาม" → "กดยืนยัน"
+
+[HIGH] Owner pairing flow confusing
+- Must type "เชื่อมต่อ <16+ char code>"
+- Code generated by bootstrap, shown in terminal only
+- No way to retrieve code if lost
+- FIX: Show pairing code in web dashboard or "ขอรหัสเชื่อมต่อ" command
+
+[MEDIUM] Invite flow: owner types "เชิญเพื่อน" → gets code → sends to friend → friend types "เข้าร่วม <code>"
+- Multi-step, easy to mistype
+- FIX: Shareable deep link: line.me/R/ti/p/@332nhscs?invite=CODE
+
+[LOW] No empty state guidance
+- "ดูรายรับรายจ่าย" on new account shows "ยังไม่มีรายการที่ยืนยันแล้ว"
+- Could suggest "ส่งสลิปเพื่อเริ่มต้น"
+- FIX: Contextual empty state CTAs
+
+================================================================================
+7. PERFORMANCE & PERCEIVED SPEED
+================================================================================
+
+[HIGH] OCR latency: 3-10 seconds (Vercel Hobby)
+- No interim feedback
+- User perception: "slow" or "broken"
+- FIX: Immediate acknowledgment + async processing notification
+
+[MEDIUM] Webhook → queue → worker → push = 2-3 network hops
+- Adds 500ms-2s latency
+- FIX: For simple text commands (help, summary), process inline in webhook
+
+[LOW] Cold start on Vercel Hobby
+- First request after idle: +2-5s
+- FIX: Upgrade to Pro or use cron to keep warm
+
+================================================================================
+8. DATA PORTABILITY & TRUST
+================================================================================
+
+[MEDIUM] Export: CSV only, 10-minute expiry link
+- No JSON, no date range filter
+- Short expiry good for security but inconvenient
+- FIX: Add format options, longer expiry with re-auth
+
+[MEDIUM] No "download all images" (slips not stored)
+- By design - privacy first
+- But users may want receipts
+- FIX: Document clearly: "เราไม่เก็บรูปสลิป เพื่อความเป็นส่วนตัว"
+
+[LOW] No data deletion verification
+- "ล้างประวัติ" → immediate
+- No audit trail for user
+- FIX: Send confirmation summary: "ลบแล้ว: 42 รายการยืนยัน, 3 รายการร่าง, 156 event logs"
+
+================================================================================
+9. OWNER/ADMIN UX
+================================================================================
+
+[MEDIUM] "สถานะระบบ" shows raw counts
+- "คิวงาน: 5 ค้าง • 0 ล้มเหลว"
+- No context: is 5 normal? actionable?
+- FIX: Add health indicators (✅/⚠️/🔴) and recommendations
+
+[LOW] No broadcast/announcement to all users
+- Owner can't notify users of maintenance/features
+- FIX: Add "ประกาศ" command with confirmation
+
+[LOW] Member management: list shows "...UserID" (last 6 chars)
+- Hard to identify users
+- FIX: Show LINE display name (requires additional API call)
+
+================================================================================
+10. PRIORITIZED FIX LIST
+================================================================================
+
+P0 (Critical - blocks core usage):
+1. Add OCR processing indicator ("กำลังอ่านสลิป...")
+2. Fix stale button confusion (version badge or disable pattern)
+3. Improve draft list UI (carousel or unified flex)
+4. Add QR code to landing page for easy LINE add
+
+P1 (High - significant UX improvement):
+5. Progress indicator for multi-field entry
+6. Better empty states with CTAs
+7. Rate limit warning before cutoff
+8. Owner pairing code retrieval
+9. Bulk actions for pending drafts
+10. Soft delete with recovery for "ล้างประวัติ"
+
+P2 (Medium - polish):
+11. Category quick-replies in manual entry
+12. Visual percentage bars in summary
+13. Invite deep link
+14. Onboarding carousel for new users
+15. FAQ section on landing page
+
+P3 (Low - nice to have):
+16. English locale support
+17. Date range custom summary
+18. Multiple rich menus per context
+19. Broadcast announcement feature
+20. Export format options
+
+================================================================================
+11. TECHNICAL DEBT AFFECTING UX
+================================================================================
+
+- Vercel Hobby cold starts → perceived slowness
+- 12MB image limit undocumented
+- No automated testing of Flex message rendering
+- LINE API version locked (no graceful degradation)
+- Tesseract language data copied to /tmp each invocation (adds ~500ms)
+
+================================================================================
+12. METRICS TO TRACK (Post-Launch)
+================================================================================
+
+- OCR success rate per provider (paotang/make/bbl/scb)
+- Avg messages per confirmed expense (target: <4)
+- Drop-off rate at each confirmation step
+- "รายการค้าง" usage vs direct confirmation
+- Export usage frequency
+- Owner pairing completion rate
+- Invite redemption rate
+- Error rates by type (OCR, auth, rate limit, db)
+
+================================================================================
+END OF REPORT
+================================================================================

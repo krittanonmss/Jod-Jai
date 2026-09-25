@@ -1,6 +1,6 @@
 import { createWorker, OEM, PSM } from 'tesseract.js';
 import sharp from 'sharp';
-import { mkdir, copyFile } from 'node:fs/promises';
+import { mkdir, copyFile, access, constants } from 'node:fs/promises';
 import path from 'node:path';
 import { parseSlipText, parseDateLine } from './slip-parser';
 
@@ -15,15 +15,27 @@ const regions:Record<string,{date:Rect,amount:Rect,recipient:Rect}>={
  bbl:{date:[.28,.32,.44,.03],amount:[.35,.382,.30,.036],recipient:[.37,.545,.59,.059]},
  scb:{date:[.34,.24,.42,.025],amount:[.60,.596,.35,.034],recipient:[.60,.455,.36,.034]},
 };
+let langCacheReady=false;
+async function ensureLangCache(){
+  if(langCacheReady)return;
+  const langPath='/tmp/jod-jai-ocr-languages';
+  await mkdir(langPath,{recursive:true});
+  await Promise.all(['tha','eng'].map(async code=>{
+    const dest=path.join(langPath,`${code}.traineddata.gz`);
+    try{await access(dest,constants.F_OK);}catch{
+      await copyFile(packagePath('@tesseract.js-data',code,'4.0.0_best_int',`${code}.traineddata.gz`),dest);
+    }
+  }));
+  langCacheReady=true;
+}
 export async function recognizeSlip(image:Buffer) {
- const langPath='/tmp/jod-jai-ocr-languages';
- await mkdir(langPath,{recursive:true});
- await Promise.all(['tha','eng'].map(code=>copyFile(packagePath('@tesseract.js-data',code,'4.0.0_best_int',`${code}.traineddata.gz`),path.join(langPath,`${code}.traineddata.gz`))));
- const worker=await createWorker('eng+tha',OEM.LSTM_ONLY,{
-  langPath,workerPath:packagePath('tesseract.js','src','worker-script','node','index.js'),
-  corePath:packagePath('tesseract.js-core'),
-  cacheMethod:'none',logger:()=>{},errorHandler:()=>{},
- });
+  await ensureLangCache();
+  const langPath='/tmp/jod-jai-ocr-languages';
+  const worker=await createWorker('eng+tha',OEM.LSTM_ONLY,{
+   langPath,workerPath:packagePath('tesseract.js','src','worker-script','node','index.js'),
+   corePath:packagePath('tesseract.js-core'),
+   cacheMethod:'none',logger:()=>{},errorHandler:()=>{},
+  });
  try {
   const source=await sharp(image,{limitInputPixels:25_000_000}).rotate().png().toBuffer();
   const meta=await sharp(source).metadata();

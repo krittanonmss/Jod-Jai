@@ -9,7 +9,7 @@ const env=process.env;
 const project=env.SUPABASE_PROJECT_REF;
 export async function api(url,token,options={}){
  const r=await fetch(url,{...options,headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json',...options.headers},signal:AbortSignal.timeout(60000)});
- if(!r.ok){let detail=''; if(new URL(url).pathname==='/v11/projects'){const error=await r.json();detail=String(error.error?.message||error.message||'');} throw new Error(`API ${new URL(url).hostname}${new URL(url).pathname}: HTTP ${r.status} ${detail}`);}
+ if(!r.ok){let detail=''; try{const error=await r.json();detail=String(error.error?.message||error.message||JSON.stringify(error));}catch{} throw new Error(`API ${new URL(url).hostname}${new URL(url).pathname}: HTTP ${r.status} ${detail}`);}
  return r.status===204?null:r.json();
 }
 export async function sql(query){return api(`https://api.supabase.com/v1/projects/${project}/database/query`,env.SUPABASE_ACCESS_TOKEN,{method:'POST',body:JSON.stringify({query})});}
@@ -65,7 +65,7 @@ async function deploy(){
  async function collect(dir){for(const entry of await readdir(dir,{withFileTypes:true})){
   const f=path.join(dir,entry.name);if(entry.isDirectory())await collect(f);else if(entry.isFile())files.push({file:f,data:(await readFile(f)).toString('base64'),encoding:'base64'});
  }}
- for(const dir of ['app','lib'])await collect(dir);
+ for(const dir of ['app','lib','public'])await collect(dir);
  for(const file of ['package.json','package-lock.json','next.config.ts','tsconfig.json','next-env.d.ts','vercel.json'])files.push({file,data:(await readFile(file)).toString('base64'),encoding:'base64'});
  const result=await api('https://api.vercel.com/v13/deployments'+query,env.VERCEL_TOKEN,{method:'POST',body:JSON.stringify({name:'jod-jai',project:app.id,target:'production',files,projectSettings:{framework:'nextjs',buildCommand:'npm run build'}})});
  await mkdir('.deploy',{recursive:true});await writeFile('.deploy/vercel.json',JSON.stringify({id:result.id,url:result.url,teamId:owner.id,projectId:app.id},null,2));
