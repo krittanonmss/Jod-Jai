@@ -34,6 +34,7 @@ test('Bangkok Bank amount and recipient parsing ignore OCR suffixes and account 
  assert.equal(slip.amount,'533.93');assert.equal(slip.recipient,'TRUEAPP');
  assert.equal(cleanRecipient('ไปที่\nBiller ID: 010753600000000'),null);
  assert.equal(cleanRecipient('ไปที่\nร้าน ABC\nxxx-xxx061'),'ร้าน ABC');
+ assert.equal(cleanRecipient('ไปยัง\nG-Wallet ID: *** จ9998+* 2675\nศักดิ์ศรีร้านทอง'), 'ศักดิ์ศรีร้านทอง');
 });
 test('Paotang records net paid and preserves subsidy separately',()=>{
  const s=parseSlipText('เป๋าตัง\n22 ก.ย. 2569 19:43\nค่าสินค้า/บริการ\n55 บาท\nสิทธิไทยช่วยไทยพลัส\n-33 บาท\nจำนวนเงินที่ชำระ\n22 บาท\nหมายเหตุ: ค่าอาหารเย็น');

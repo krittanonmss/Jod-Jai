@@ -76,16 +76,17 @@ export function summary(d:Draft):string {
  (d.fee_satang?`\nค่าธรรมเนียมในสลิป: ${money(d.fee_satang)} บาท (แสดงแยกจากยอดจ่าย)`: '');
 }
 export function question(d:Draft, field:string):Message {
+  const editing=Boolean(d.edit_field);
   const prompts:Record<string,string>={
-    amount:'อ่านยอดไม่ชัด กรุณาระบุยอดจ่ายจริง เช่น 96.00',
-    date:'กรุณาระบุวันที่และเวลา เช่น 2026-09-23 17:22 (เวลาไทย)',
-    description:'รายการนี้เป็นค่าอะไรครับ?', recipient:'ระบุชื่อผู้รับเงินครับ',
+    amount:editing?'พิมพ์ยอดใหม่ เช่น 96.00':'อ่านยอดไม่ชัด กรุณาระบุยอดจ่ายจริง เช่น 96.00',
+    date:editing?'พิมพ์วันเวลาใหม่ เช่น 2026-09-23 17:22':'กรุณาระบุวันที่และเวลา เช่น 2026-09-23 17:22 (เวลาไทย)',
+    description:editing?'พิมพ์รายละเอียดใหม่':'รายการนี้เป็นค่าอะไรครับ?', recipient:editing?'พิมพ์ชื่อผู้รับใหม่':'ระบุชื่อผู้รับเงินครับ',
     category:'เลือกหมวด: '+categories.join(', '),
   };
   const missing = getMissingFields(d);
   const combined=missing.length>1;
   const labels:Record<string,string>={amount:'ยอดเงิน',date:'วันเวลา',recipient:'ผู้รับ'};
-  const message=text(combined?`ข้อมูลที่ยังขาด: ${missing.map(value=>labels[value]||value).join(', ')}\nพิมพ์ในบรรทัดเดียว คั่นด้วย comma\nเช่น 99.00, 2026-09-26 19:30`:`${prompts[field]||prompts.description}\nตอบได้เลย หรือเลือกแก้ไขจากปุ่ม`);
+  const message=text(combined?`ข้อมูลที่ยังขาด: ${missing.map(value=>labels[value]||value).join(', ')}\nพิมพ์ในบรรทัดเดียว คั่นด้วย comma\nเช่น 99.00, 2026-09-26 19:30`:`${prompts[field]||prompts.description}${editing?'\nส่งข้อความนี้มาในแชตได้เลย':'\nตอบได้เลย หรือเลือกแก้ไขจากปุ่ม'}`);
   if(field==='category')message.quickReply={items:categories.map(category=>quickMessage(category))};
   return message;
 }

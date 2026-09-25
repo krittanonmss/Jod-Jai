@@ -25,6 +25,14 @@ async function changeConfirmed(event:LineEvent,d:Draft,action:string,patch:Recor
  const {data,error}=await db().rpc('jod_change_confirmed',{p_event:event.webhookEventId,p_user:event.source.userId,p_id:d.id,p_version:version,p_action:action,p_patch:patch});
  assertDb(error);return changeResponse(data as Change);
 }
+async function beginEdit(event:LineEvent,d:Draft,field:string,confirmed=false,version=d.version):Promise<Message[]> {
+ const rpc=confirmed?'jod_change_confirmed':'jod_change_draft';
+ const {data,error}=await db().rpc(rpc,{p_event:event.webhookEventId,p_user:event.source.userId,p_id:d.id,p_version:version,p_action:'patch',p_patch:{edit_field:field}});
+ assertDb(error);
+ const result=data as Change;
+ if(result.code!=='updated'||!result.draft)return changeResponse(result);
+ return [review(result.draft)];
+}
 async function pending(user:string,page?:number):Promise<Draft[]>{
  let query=db().from('jod_drafts').select('*').eq('user_id',user).eq('status','draft').is('deleted_at',null).order('created_at',{ascending:false});
  if(page)query=query.range((page-1)*10,page*10-1);
@@ -185,10 +193,8 @@ if(imageMessage){
    if(action==='reopen'||action==='edit')return [editMenu(d)];
    if(action==='delete_confirmed')return changeConfirmed(event,d,'delete',{},version);
    if(action==='field'){
-    const field=params.get('field');if(!['amount','date','recipient','description','category'].includes(field||''))return [text('กรุณาเลือกช่องที่ต้องการแก้ไข')];
-    const marked=await changeConfirmed(event,d,'patch',{edit_field:field},version);
-    const updated=(marked.at(-1) as Message & {type?:string})?.type==='text'?null:null;
-    const next={...d,edit_field:field,version:d.version+1};return [text(`กำลังแก้รายการ #${d.short_code} (ยอดเดิมยังนับในสรุป)`) ,review(next)];
+    const field=params.get('field');if(!field||!['amount','date','recipient','description','category'].includes(field))return [text('กรุณาเลือกช่องที่ต้องการแก้ไข')];
+    return beginEdit(event,d,field,true,version);
    }
    return [latestMenu(d)];
   }
@@ -196,8 +202,8 @@ if(imageMessage){
   if(d.version!==version)return changeResponse({code:'stale',draft:d});
   if(action==='edit')return [editMenu(d)];
   if(action==='field'){
-   const field=params.get('field');if(!['amount','date','recipient','description','category'].includes(field||''))return [text('กรุณาเลือกช่องที่ต้องการแก้ไข')];
-   return change(event,d,'patch',{edit_field:field},version);
+   const field=params.get('field');if(!field||!['amount','date','recipient','description','category'].includes(field))return [text('กรุณาเลือกช่องที่ต้องการแก้ไข')];
+   return beginEdit(event,d,field,false,version);
   }
   if(action==='confirm'||action==='cancel')return change(event,d,action,{},version);
   return [text(help)];

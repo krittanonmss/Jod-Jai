@@ -5,6 +5,10 @@ export function cleanRecipient(raw:string):string|null {
  const lines=raw.split(/\n/).map(s=>s.trim()).filter(Boolean);
  const nameParts:string[]=[];
  for(const line of lines){
+  // เป๋าตังค์แสดง G-Wallet ID เป็นข้อมูลระบุตัวตนของผู้จ่าย ไม่ใช่ชื่อร้าน
+  // ข้ามบรรทัดนี้เพื่อให้ OCR ไปอ่านชื่อผู้รับในบรรทัดถัดไป; ถ้าไม่มีชื่อจริง
+  // ให้ปล่อยเป็น null และถามผู้ใช้ แทนการเดาชื่อจากเลข/ID.
+  if(/\bG\s*[-–]?\s*Wallet\s*(?:ID)?\b/i.test(line)||/\bWallet\s*ID\b/i.test(line))continue;
   if(/^(?:BillerID|ชื่อบัญชี|ServiceCode|หมายเลข|เลขที่|รหัส|ค่าธรรมเนียม)/i.test(compact(line)))break;
   const part=line.replace(/^(?:ไปยัง|ไปท[ี่ี])\s*/,'').split(/Biller\s*ID|ชื่อ\s*บัญชี|เลข(?:ที่|บัญชี)|รหัส(?:อ้างอิง|รายการ)/i)[0]
    .replace(/^[^a-zA-Zก-ฮ]+/,'').replace(/([ก-๙])\s+(?=[ก-๙])/g,'$1').trim();
