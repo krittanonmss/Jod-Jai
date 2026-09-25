@@ -4,7 +4,7 @@ import {createHmac} from 'node:crypto';
 import {satang,thaiDate,normalizeSlip,parseAnswer,missingField,Draft} from '../lib/domain';
 import {parseSlipText,parseDateLine} from '../lib/slip-parser';
 import {validSignature} from '../lib/line';
-import {review} from '../lib/messages';
+import {review,summaryCard,overviewCard,clearHistoryConfirm,deleteRecordConfirm,exportCard} from '../lib/messages';
 import {allowedUser} from '../lib/config';
 test('money uses integer satang, rejects negatives and ambiguous decimals',()=>{
  assert.equal(satang('2,000.05'),200005);assert.equal(satang('0.29'),29);
@@ -42,6 +42,18 @@ test('complete draft exposes explicit versioned confirmation; incomplete draft a
  const serialized=JSON.stringify(review(draft));assert.match(serialized,/ยืนยันและบันทึก/);assert.match(serialized,/v=4/);
  assert.equal(missingField({...draft,description:null}),'description');assert.equal(review({...draft,description:null}).type,'text');
  assert.equal(review({...draft,edit_field:'amount'}).type,'text');
+});
+test('summary and overview use compact flex messages',()=>{
+ const summary=summaryCard({title:'สรุปวันนี้',period:'2026-09-25',total:15000,count:2,rows:[{category:'อาหาร',total_satang:12000},{category:'เดินทาง',total_satang:3000}],recent:[draft]});
+ assert.equal(summary.type,'flex');assert.match(JSON.stringify(summary),/สรุปวันนี้/);assert.match(JSON.stringify(summary),/เพิ่มรายการ/);
+ const overview=overviewCard(9600,[draft],1,[{category:'อาหาร',total_satang:9600}]);
+ assert.equal(overview.type,'flex');assert.match(String(overview.altText),/ดูรายรับรายจ่าย/);assert.match(JSON.stringify(overview),/รายการรอยืนยัน/);
+});
+test('destructive actions require explicit Flex confirmation and exports expire visibly',()=>{
+ assert.match(JSON.stringify(clearHistoryConfirm()),/action=clear_history/);
+ assert.match(JSON.stringify(deleteRecordConfirm(draft)),/delete_confirmed/);
+ const exported=exportCard('https://example.test/api/export?token=abc',3);
+ assert.match(JSON.stringify(exported),/10 นาที/);assert.match(JSON.stringify(exported),/ดาวน์โหลด CSV/);
 });
 test('editing preserves validation and allows categorization',()=>{
  assert.deepEqual(parseAnswer('amount','22.50 บาท'),{amount_satang:2250});

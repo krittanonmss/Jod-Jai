@@ -4,19 +4,15 @@ This backlog is ordered by practical priority. Start from P0 unless the user exp
 
 ## Current Working State
 
-- There are local, uncommitted changes for P0 summary Flex Messages in `lib/messages.ts`, `lib/bot.ts`, and `tests/domain.test.ts`.
-- The local P0 implementation replaces plain text summaries with Flex cards for `ดูรายรับรายจ่าย`, `สรุปวันนี้`, and `สรุปเดือนนี้`.
-- Local checks already passed once: `npm run typecheck`, `npm test`, and `npm run build`.
-- A Vercel deployment was started, but the last status check saw it still `BUILDING`; production smoke test did not complete yet.
-- Do not assume P0 is finished next session. First re-check deployment status, smoke test production, inspect the local diff, then decide whether to commit/push or adjust.
+- P0 summary Flex Messages and the P1 data-control flows are implemented locally.
+- Supabase migration `005_p1_data_controls.sql` is applied and database integration tests pass.
+- Local checks pass: `npm run typecheck`, `npm test`, `npm run build`, and `npm run test:db`.
+- Production deployment is READY and smoke/E2E tests pass. A real LINE visual check remains useful for final layout polish.
 
 Next restart checklist:
 
-1. Run `git status --short` and inspect the uncommitted P0 diff.
-2. Run `npm run typecheck`, `npm test`, and `npm run build` again if any code changed or if the session context is uncertain.
-3. Check Vercel deployment status and run production smoke test only when ready.
-4. Send a real LINE command check for `ดูรายรับรายจ่าย`, `สรุปวันนี้`, and `สรุปเดือนนี้` if possible.
-5. Commit/push only after production is verified, unless the user explicitly asks for local-only work.
+1. Check `ดูรายรับรายจ่าย`, `สรุปวันนี้`, `สรุปเดือนนี้`, and the P1 buttons in real LINE.
+2. Adjust spacing/copy only if the real LINE rendering needs polish.
 
 ## Done
 
@@ -24,6 +20,8 @@ Next restart checklist:
 - README has been updated with the public site link, privacy notes, rough costs, and sharing guidance.
 - Rich Menu is live as the default LINE menu.
 - `BACKLOG.md` is now the source of truth for follow-up work and priority.
+- P0 Flex summaries are implemented for overview, today, and this month.
+- P1 direct-answer/quick-action UX, latest-record edit/delete, user history deletion, CSV export, and configurable six-month retention are implemented.
 
 ## Needs Re-Check / Polish
 
@@ -38,7 +36,7 @@ Next restart checklist:
 - Export should ship before automatic retention is enabled.
 - System status/quota visibility should ship before broad friend-sharing.
 
-## P0: Make LINE Summaries Readable
+## P0: Make LINE Summaries Readable — Implemented, Needs Visual Check
 
 Why now:
 
@@ -66,7 +64,7 @@ Acceptance criteria:
 - Empty states are short and clear.
 - Existing tests pass, and message JSON stays within LINE Flex limits.
 
-## P1: Reduce Manual `#<short_code>` Typing
+## P1: Reduce Manual `#<short_code>` Typing — Implemented
 
 Why next:
 
@@ -89,7 +87,7 @@ Acceptance criteria:
 - Old `#<short_code>` commands continue to work as a fallback.
 - Confirmed records can be corrected or deleted without direct database access.
 
-## P1: Add User Data Deletion Command
+## P1: Add User Data Deletion Command — Implemented
 
 Why next:
 
@@ -110,7 +108,7 @@ Acceptance criteria:
 - Deletion is idempotent and safe to retry.
 - Accidental one-message deletion is not possible.
 
-## P1: Export User Data
+## P1: Export User Data — Implemented
 
 Why next:
 
@@ -132,7 +130,7 @@ Acceptance criteria:
 - Users cannot export another user's records.
 - Export is available before automatic retention is enabled.
 
-## P1: Automatic 6-Month Data Retention
+## P1: Automatic 6-Month Data Retention — Implemented
 
 Why next:
 

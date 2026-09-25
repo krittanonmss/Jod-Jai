@@ -53,7 +53,7 @@ async function team(){
  if(!found)throw new Error('Cannot uniquely select Vercel team');
  return found;
 }
-const runtimeKeys=['SUPABASE_URL','SUPABASE_SECRET_KEY','LINE_CHANNEL_ID','LINE_CHANNEL_SECRET','LINE_CHANNEL_ACCESS_TOKEN','LINE_ALLOWED_USER_IDS','LINE_PAIRING_CODE','CRON_SECRET'];
+const runtimeKeys=['SUPABASE_URL','SUPABASE_SECRET_KEY','LINE_CHANNEL_ID','LINE_CHANNEL_SECRET','LINE_CHANNEL_ACCESS_TOKEN','LINE_ALLOWED_USER_IDS','LINE_PAIRING_CODE','CRON_SECRET','APP_URL','RETENTION_MONTHS'];
 async function deploy(){
  const owner=await team();const query=`?teamId=${encodeURIComponent(owner.id)}`;
  const projects=await api('https://api.vercel.com/v9/projects'+query,env.VERCEL_TOKEN);
@@ -128,10 +128,21 @@ async function smoke(){
  const body='{"events":[]}';const signature=createHmac('sha256',env.LINE_CHANNEL_SECRET).update(body).digest('base64');
  const signed=await fetch(base+'/api/line/webhook',{method:'POST',headers:{'Content-Type':'application/json','x-line-signature':signature},body});if(signed.status!==200)throw new Error('Signed webhook failed: '+signed.status);
  const worker=await fetch(base+'/api/jobs/run',{method:'POST'});if(worker.status!==401)throw new Error('Worker exposed');
+ const maintenance=await fetch(base+'/api/jobs/run');if(maintenance.status!==401)throw new Error('Maintenance endpoint exposed');
+ const invalidExport=await fetch(base+'/api/export?token=invalid');if(invalidExport.status!==400)throw new Error('Invalid export token accepted');
  const denied={events:[{webhookEventId:'smoke-'+randomBytes(12).toString('hex'),type:'message',timestamp:Date.now(),source:{type:'user',userId:'U00000000000000000000000000000000'},message:{id:'smoke',type:'text',text:'hello'}}]};
  const deniedBody=JSON.stringify(denied);const deniedSig=createHmac('sha256',env.LINE_CHANNEL_SECRET).update(deniedBody).digest('base64');
  const deniedResult=await fetch(base+'/api/line/webhook',{method:'POST',headers:{'Content-Type':'application/json','x-line-signature':deniedSig},body:deniedBody});if(deniedResult.status!==200)throw new Error('Owner authorization/database check failed: '+deniedResult.status);
- console.log('Live smoke passed: homepage, health, signed webhook, signature rejection, protected worker and DB-backed owner check. '+base);
+ console.log('Live smoke passed: homepage, health, signed webhook, protected worker/maintenance, guarded export and DB-backed owner check. '+base);
+}
+async function maintenance(){
+ const info=JSON.parse(await readFile('.deploy/vercel.json','utf8'));
+ const deployment=await api(`https://api.vercel.com/v13/deployments/${info.id}?teamId=${info.teamId}`,env.VERCEL_TOKEN);
+ if(deployment.readyState!=='READY')throw new Error('Deployment not ready');
+ const alias=deployment.alias?.find(a=>a==='jod-jai.vercel.app')||deployment.alias?.[0]||deployment.url;
+ const response=await fetch('https://'+alias+'/api/jobs/run',{headers:{Authorization:`Bearer ${env.CRON_SECRET}`}});
+ if(!response.ok)throw new Error('Maintenance HTTP '+response.status);
+ console.log('Retention maintenance completed successfully.');
 }
 async function check(){
  const p=await api(`https://api.supabase.com/v1/projects/${project}`,env.SUPABASE_ACCESS_TOKEN);console.log('Supabase: '+p.name+' / '+p.status);
@@ -141,6 +152,6 @@ async function check(){
 if(process.argv[1]===fileURLToPath(import.meta.url)){
  try{
   const action=process.argv[2];
-  await ({check,bootstrap,migrate,deploy,status,cron,dbtest,linecheck,linehook,smoke}[action]||(()=>{throw new Error('Unknown command');}))();
+  await ({check,bootstrap,migrate,deploy,status,cron,dbtest,linecheck,linehook,smoke,maintenance}[action]||(()=>{throw new Error('Unknown command');}))();
  }catch(e){console.error(e.message);process.exitCode=1;}
 }

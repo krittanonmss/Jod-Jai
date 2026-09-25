@@ -1,10 +1,10 @@
-import {createHash} from 'node:crypto';
+import {createHash,randomBytes} from 'node:crypto';
 import {db,assertDb} from './db';
-import {Draft,normalizeSlip,missingField,parseAnswer,money,displayDate} from './domain';
+import {Draft,normalizeSlip,missingField,parseAnswer,money} from './domain';
 import {getImage,LineEvent,Message} from './line';
 import {recognizeSlip} from './ocr';
 import {slipQrHash} from './qr';
-import {text,review,editMenu,help} from './messages';
+import {text,review,editMenu,help,summaryCard,overviewCard,latestMenu,deleteRecordConfirm,clearHistoryConfirm,exportCard} from './messages';
 
 type Change={code:string;draft?:Draft};
 function changeResponse(result:Change):Message[]{
@@ -12,6 +12,8 @@ function changeResponse(result:Change):Message[]{
  const d=result.draft!;
  if(['saved','confirmed'].includes(result.code))return [text(`บันทึกแล้ว ✅ #${d.short_code}\n${d.description}\n${money(d.amount_satang!)} บาท • ${d.category}`)];
  if(result.code==='cancelled')return [text(`ยกเลิกรายการ #${d.short_code} แล้ว ไม่นับในยอดรายจ่ายครับ`)];
+ if(result.code==='deleted')return [text(`ลบรายการ ${d.description||'#'+d.short_code} แล้วครับ`)];
+ if(result.code==='reopened')return [text('เปิดรายการล่าสุดให้แก้ไขแล้วครับ'),editMenu(d)];
  return [...(result.code==='stale'?[text('ข้อมูลมีการแก้ไขแล้ว กรุณาตรวจสรุปล่าสุดก่อนยืนยันครับ')]:[]),review(d)];
 }
 async function change(event:LineEvent,d:Draft,action:string,patch:Record<string,unknown>={},version=d.version):Promise<Message[]>{
@@ -21,6 +23,20 @@ async function change(event:LineEvent,d:Draft,action:string,patch:Record<string,
 async function pending(user:string):Promise<Draft[]>{
  const {data,error}=await db().from('jod_drafts').select('*').eq('user_id',user).eq('status','draft').order('created_at',{ascending:false}).limit(20);
  assertDb(error);return data as Draft[];
+}
+async function latestConfirmed(user:string):Promise<Draft|null>{
+ const {data,error}=await db().from('jod_drafts').select('*').eq('user_id',user).eq('status','confirmed').order('confirmed_at',{ascending:false}).limit(1).maybeSingle();
+ assertDb(error);return data as Draft|null;
+}
+async function exportData(user:string):Promise<Message[]> {
+ const countResult=await db().from('jod_drafts').select('id',{count:'exact',head:true}).eq('user_id',user).eq('status','confirmed');
+ assertDb(countResult.error);
+ const token=randomBytes(24).toString('hex');
+ const tokenHash=createHash('sha256').update(token).digest('hex');
+ const expiresAt=new Date(Date.now()+10*60_000).toISOString();
+ const saved=await db().from('jod_exports').insert({token_hash:tokenHash,user_id:user,expires_at:expiresAt});assertDb(saved.error);
+ const base=(process.env.APP_URL||'https://jod-jai.vercel.app').replace(/\/$/,'');
+ return [exportCard(`${base}/api/export?token=${token}`,countResult.count||0)];
 }
 function pendingMessage(rows:Draft[]):Message[]{
  if(!rows.length)return [text('ไม่มีรายการรอการยืนยันครับ ส่งสลิปใหม่ได้เลย')];
@@ -34,15 +50,22 @@ async function totals(user:string,monthly:boolean):Promise<Message[]>{
  const {data,error}=await db().rpc('jod_summary',{p_user:user,p_from:from,p_to:until});
  assertDb(error);let total=0,count=0;
  for(const row of data||[]){total+=Number(row.total_satang);count+=Number(row.entries);}
- return [text(`รายจ่าย${monthly?'เดือนนี้':'วันนี้'} (เฉพาะรายการที่ยืนยัน)\n${money(total)} บาท • ${count} รายการ\n`+(data||[]).map((row:{category:string,total_satang:number})=>`${row.category}: ${money(Number(row.total_satang))} บาท`).join('\n'))];
+ const recent=await db().from('jod_drafts').select('*').eq('user_id',user).eq('status','confirmed').gte('occurred_at',from).lt('occurred_at',until).order('occurred_at',{ascending:false}).limit(monthly?5:3);
+ assertDb(recent.error);
+ const days=monthly?Math.max(1,Math.min(thaiNow.getUTCDate(),new Date(Date.UTC(thaiNow.getUTCFullYear(),thaiNow.getUTCMonth()+1,0)).getUTCDate())):1;
+ return [summaryCard({title:`สรุป${monthly?'เดือนนี้':'วันนี้'}`,period:monthly?date.slice(0,7):date,total,count,rows:data||[],recent:recent.data as Draft[],average:monthly?Math.round(total/days):undefined})];
 }
 async function overview(user:string):Promise<Message[]> {
  const confirmed=await db().from('jod_drafts').select('*').eq('user_id',user).eq('status','confirmed').order('confirmed_at',{ascending:false}).limit(8);
  assertDb(confirmed.error);
- const rows=confirmed.data as Draft[];
  const drafts=await pending(user);
- const recent=rows.length?rows.map(d=>`#${d.short_code} ${money(d.amount_satang!)} บาท • ${d.description || d.recipient || 'ไม่ระบุ'} • ${d.occurred_at?displayDate(d.occurred_at):'ไม่ระบุวันที่'}`).join('\n'):'ยังไม่มีรายการที่ยืนยันแล้ว';
- return [text(`รายรับ/รายจ่าย\nรายรับ: ยังไม่ได้เปิดใช้\nรายจ่ายล่าสุด: ${rows.length} รายการ\nรายการรอยืนยัน: ${drafts.length} รายการ\n\n${recent}`)];
+ const thaiNow=new Date(Date.now()+7*3600000); const date=thaiNow.toISOString().slice(0,10);
+ const from=date.slice(0,7)+'-01T00:00:00+07:00';
+ const until=new Date(Date.UTC(thaiNow.getUTCFullYear(),thaiNow.getUTCMonth(),thaiNow.getUTCDate()+1)-7*3600000).toISOString();
+ const summary=await db().rpc('jod_summary',{p_user:user,p_from:from,p_to:until});
+ assertDb(summary.error);let total=0;
+ for(const row of summary.data||[])total+=Number(row.total_satang);
+ return [overviewCard(total,confirmed.data as Draft[],drafts.length,summary.data||[])];
 }
 function thaiNowIso():string {
  const now = new Date();
@@ -93,9 +116,23 @@ export async function processEvent(event:LineEvent):Promise<Message[]>{
  }
  if(event.type==='postback' && event.postback){
   const params=new URLSearchParams(event.postback.data);const id=params.get('id');const action=params.get('action');const version=Number(params.get('v'));
+  if(action==='clear_history'){
+   const cleared=await db().rpc('jod_clear_user_history',{p_user:user,p_keep_event:event.webhookEventId});assertDb(cleared.error);
+   const count=Number((cleared.data as {drafts?:number})?.drafts||0);
+   return [text(`ล้างประวัติเรียบร้อยแล้ว ${count} รายการครับ\nยังคงสิทธิ์เจ้าของบัญชีไว้ คุณเริ่มใช้งานต่อได้ทันที`)];
+  }
   if(!id||!/^[0-9a-f-]{36}$/i.test(id)||!Number.isInteger(version)||version<1)return [text('ปุ่มนี้ไม่ถูกต้องครับ พิมพ์ รายการค้าง เพื่อดูรายการล่าสุด')];
   const {data,error}=await db().from('jod_drafts').select('*').eq('user_id',user).eq('id',id).maybeSingle();
   assertDb(error);if(!data)return [text('ไม่พบรายการของคุณครับ')];const d=data as Draft;
+  if(d.status==='confirmed'){
+   if(d.version!==version)return [text('รายการนี้มีการเปลี่ยนแปลงแล้ว กรุณาเปิดรายการล่าสุดใหม่ครับ')];
+   if(action==='delete_prompt')return [deleteRecordConfirm(d)];
+   if(action==='reopen'||action==='delete_confirmed'){
+    const changed=await db().rpc('jod_change_confirmed',{p_event:event.webhookEventId,p_user:user,p_id:d.id,p_version:version,p_action:action==='reopen'?'reopen':'delete'});
+    assertDb(changed.error);return changeResponse(changed.data as Change);
+   }
+   return [latestMenu(d)];
+  }
   if(d.status!=='draft')return changeResponse({code:d.status,draft:d});
   if(d.version!==version)return changeResponse({code:'stale',draft:d});
   if(action==='edit')return [editMenu(d)];
@@ -114,6 +151,13 @@ export async function processEvent(event:LineEvent):Promise<Message[]>{
   if(['ดูรายรับรายจ่าย','ดูรายการ','รายรับรายจ่าย'].includes(input))return overview(user);
   if(input==='สรุปวันนี้')return totals(user,false);
   if(input==='สรุปเดือนนี้')return totals(user,true);
+  if(['รายการล่าสุด','แก้รายการล่าสุด','ลบรายการล่าสุด'].includes(input)){
+   const latest=await latestConfirmed(user);if(!latest)return [text('ยังไม่มีรายการที่บันทึกแล้วครับ')];
+   if(input==='ลบรายการล่าสุด')return [deleteRecordConfirm(latest)];
+   return [latestMenu(latest)];
+  }
+  if(input==='ล้างประวัติ')return [clearHistoryConfirm()];
+  if(input==='ส่งออกข้อมูล')return exportData(user);
   const rows=await pending(user);
   if(input==='รายการค้าง')return pendingMessage(rows);
   const cancel=input.match(/^ยกเลิก\s+#?([a-f0-9]{10})$/i);

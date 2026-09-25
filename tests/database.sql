@@ -1,6 +1,6 @@
 begin;
 do $$
-declare d uuid; r jsonb; total bigint; claim public.jod_events;
+declare d uuid; confirmed_d uuid; other_d uuid; r jsonb; total bigint; claim public.jod_events;
 begin
  insert into public.jod_drafts(user_id,message_id,image_hash,provider,amount_satang,occurred_at,description,category,reference)
  values('__jod_test_owner__','__jod_test_message__','__jod_test_hash__','scb',200000,'2026-09-22T12:40:00Z','ทดสอบ','อื่น ๆ','__jod_ref__') returning id into d;
@@ -14,6 +14,7 @@ begin
  if r->>'code'<>'stale' then raise exception 'Stale button confirmed';end if;
  r:=public.jod_change_draft('__jod_confirm__','__jod_test_owner__',d,2,'confirm');
  if r->>'code'<>'saved' then raise exception 'Confirmation failed';end if;
+ confirmed_d:=d;
  r:=public.jod_change_draft('__jod_confirm__','__jod_test_owner__',d,2,'confirm');
  if r->>'code'<>'saved' then raise exception 'Event replay is not idempotent';end if;
  r:=public.jod_change_draft('__jod_confirm_again__','__jod_test_owner__',d,2,'confirm');
@@ -22,6 +23,12 @@ begin
  if total<>200000 then raise exception 'Incorrect confirmed total';end if;
  select coalesce(sum(total_satang),0) into total from public.jod_summary('another_user','2026-09-01','2026-10-01');
  if total<>0 then raise exception 'Cross-user summary';end if;
+ r:=public.jod_change_confirmed('__jod_confirmed_wrong__','another_user',confirmed_d,3,'delete');
+ if r->>'code'<>'not_found' then raise exception 'Cross-user confirmed deletion allowed';end if;
+ r:=public.jod_change_confirmed('__jod_reopen__','__jod_test_owner__',confirmed_d,3,'reopen');
+ if r->>'code'<>'reopened' then raise exception 'Confirmed record cannot be reopened';end if;
+ r:=public.jod_change_draft('__jod_reconfirm__','__jod_test_owner__',confirmed_d,4,'confirm');
+ if r->>'code'<>'saved' then raise exception 'Reopened record cannot be confirmed';end if;
  begin
   insert into public.jod_drafts(user_id,message_id,image_hash,provider,reference) values('__jod_test_owner__','__duplicate__','different_hash','scb','__jod_ref__');
   raise exception 'Duplicate slip reference accepted';
@@ -31,9 +38,20 @@ begin
  if r->>'code'<>'incomplete' then raise exception 'Incomplete confirmation';end if;
  r:=public.jod_change_draft('__jod_cancel__','__jod_test_owner__',d,1,'cancel');
  if r->>'code'<>'cancelled' then raise exception 'Cancellation failed';end if;
+ insert into public.jod_drafts(user_id,message_id,image_hash,provider,amount_satang,occurred_at,description,status)
+ values('__jod_clear_other__','__jod_clear_other_message__','__jod_clear_other_hash__','manual',100,'2026-09-01','keep','confirmed') returning id into other_d;
+ r:=public.jod_clear_user_history('__jod_test_owner__','__keep_current_event__');
+ if (r->>'drafts')::bigint<2 then raise exception 'User history was not cleared';end if;
+ if not exists(select 1 from public.jod_drafts where id=other_d) then raise exception 'Clear history crossed users';end if;
+ insert into public.jod_drafts(user_id,message_id,image_hash,provider,amount_satang,occurred_at,description,status,created_at)
+ values('__jod_retention__','__jod_old_message__','__jod_old_hash__','manual',100,'2000-01-01','old','confirmed','2000-01-01'),
+ ('__jod_retention__','__jod_recent_message__','__jod_recent_hash__','manual',100,now(),'recent','confirmed',now());
+ perform public.jod_cleanup_old_data(120);
+ if exists(select 1 from public.jod_drafts where message_id='__jod_old_message__') then raise exception 'Old data retained';end if;
+ if not exists(select 1 from public.jod_drafts where message_id='__jod_recent_message__') then raise exception 'Recent data deleted';end if;
  if has_table_privilege('anon','public.jod_drafts','SELECT') or has_table_privilege('authenticated','public.jod_drafts','SELECT') then raise exception 'Public table grant';end if;
  if has_function_privilege('anon','public.jod_change_draft(text,text,uuid,integer,text,jsonb)','EXECUTE') then raise exception 'Public mutation RPC';end if;
- if exists(select 1 from pg_class where relname in ('jod_drafts','jod_events','jod_mutations') and not relrowsecurity) then raise exception 'RLS disabled';end if;
+ if exists(select 1 from pg_class where relname in ('jod_drafts','jod_events','jod_mutations','jod_exports') and not relrowsecurity) then raise exception 'RLS disabled';end if;
  if not exists(select 1 from public.jod_owner) then
   if not public.jod_pair_owner('__pair_owner__') then raise exception 'Owner pairing failed';end if;
   if public.jod_pair_owner('__attacker__') then raise exception 'Owner pairing can be stolen';end if;

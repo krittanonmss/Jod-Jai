@@ -29,3 +29,8 @@ export async function drainJobs(budgetMs=190000){
  }
  return processed;
 }
+export async function cleanupOldData(){
+ const months=Number.parseInt(process.env.RETENTION_MONTHS||'6',10);
+ if(!Number.isInteger(months)||months<1||months>120)throw new Error('Invalid RETENTION_MONTHS');
+ const {error}=await db().rpc('jod_cleanup_old_data',{p_months:months});assertDb(error);
+}
