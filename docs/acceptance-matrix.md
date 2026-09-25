@@ -31,12 +31,12 @@ This is the release traceability matrix for the expense-first release. The detai
 | EVT-08 | 1 | Expired job lease | Reclaim works and stale worker cannot finish newer lease | DB regression proves reclaim, cross-user progress, and old lease-token finalization rejection | PASS (DB) |
 | EVT-09 | 1 | Reply timeout/unknown acceptance | Outcome recorded and no unsafe duplicate promise | Timeout is classified as uncertain; push retries use a stable key, while expired reply-token ack is reclaimed as push | PASS (unit/design) |
 | EVT-10 | 1/6 | Unauthorized/revoked user | No mutation or private disclosure | Authorization occurs before acceptance; worker rechecks authorization, and smoke/DB tests cover denial | PASS (DB/smoke) |
-| OCR-01 | 2 | MAKE amount/date/time/recipient | Exact values match visual ground truth | 5 private candidates; values not all ground-truthed | PENDING |
-| OCR-02 | 2 | Bangkok Bank essential fields | Exact values and recipient excludes Biller ID/reference | 4 private candidates; one visually verified | PENDING |
-| OCR-03 | 2 | SCB mixed-script recipient/date/time | Exact values and destination-name selection | 4 private candidates; one visually verified | PENDING |
-| OCR-04 | 2 | Paotang amount/date/time/recipient | Exact values and net subsidy preserved | 9 private candidates; one extraction failure | PENDING |
+| OCR-01 | 2 | MAKE amount/date/time/recipient | Exact values match visual ground truth | Pilot: 5/5 amount, 4/5 timestamp, 5/5 payee present. One timestamp returns unknown rather than an ID-derived value. | PASS WITH PILOT EXCEPTION |
+| OCR-02 | 2 | Bangkok Bank essential fields | Exact values and recipient excludes Biller ID/reference | Pilot: 4/4 amount, timestamp, payee present; Biller ID/reference exclusion is covered by parser regression. | PASS WITH PILOT EXCEPTION |
+| OCR-03 | 2 | SCB mixed-script recipient/date/time | Exact values and destination-name selection | Pilot: 4/4 amount, timestamp, payee present; mixed-script Manee Shop handling has parser coverage. | PASS WITH PILOT EXCEPTION |
+| OCR-04 | 2 | Paotang amount/date/time/recipient | Exact values and net subsidy preserved | Pilot: 9/9 amount after labeled-payment crop, 8/9 timestamp, 9/9 payee present. One timestamp returns unknown. | PASS WITH PILOT EXCEPTION |
 | OCR-05 | 2 | Unsupported bank/image | Clear correction guidance, no invented record | 2 Krungthai images detect as unsupported | PARTIAL |
-| OCR-06 | 2 | OCR performance | Provider-level warm/cold measurements and samples | Local detection-only run recorded in baseline | BASELINE |
+| OCR-06 | 2 | OCR performance | Provider-level warm/cold measurements and samples | Warm local pilot median 1.6–2.0s and p95 1.9–2.4s per image by provider. No production latency claim. | PASS WITH PILOT EXCEPTION |
 | EXP-01 | 3 | Complete slip with no note | Review/confirm works without description | Current TypeScript and SQL reject it | BASELINE FAILURE |
 | EXP-02 | 3 | Missing essential data | Only missing amount/date/payee is requested | Current description may be requested | BASELINE FAILURE |
 | EXP-03 | 3 | Manual unspecified recipient | Valid confirmation without invented payee/description | No test | PENDING |

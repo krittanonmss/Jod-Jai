@@ -10,8 +10,8 @@ import { parseSlipText, parseDateLine, cleanRecipient } from './slip-parser';
 const packagePath=(...parts:string[])=>path.join(process.cwd(),'node_modules',...parts);
 type Rect=readonly [number,number,number,number];
 const regions:Record<string,{date:Rect,amount:Rect,recipient:Rect}>={
- paotang:{date:[.10,.293,.78,.035],amount:[.73,.673,.20,.035],recipient:[.21,.46,.49,.036]},
- make:{date:[.035,.12,.45,.04],amount:[.035,.61,.38,.065],recipient:[.14,.39,.58,.055]},
+ paotang:{date:[.10,.293,.78,.035],amount:[.48,.64,.47,.23],recipient:[.18,.38,.66,.15]},
+ make:{date:[.02,.09,.62,.10],amount:[.035,.61,.38,.065],recipient:[.14,.39,.58,.055]},
  bbl:{date:[.28,.32,.44,.03],amount:[.35,.382,.30,.036],recipient:[.37,.545,.59,.059]},
  scb:{date:[.34,.24,.42,.025],amount:[.60,.596,.35,.034],recipient:[.60,.455,.36,.034]},
 };
@@ -73,7 +73,7 @@ export async function recognizeSlip(image:Buffer) {
   }
   const r=regions[slip.provider];const debug:Record<string,string>={};
   if(r){
-   if(!slip.date||!slip.time){
+   if(!slip.date||!slip.time||slip.provider==='make'){
     await worker.setParameters({tessedit_pageseg_mode:PSM.SINGLE_LINE});
     let dateRegion:Rect=r.date;
     if(slip.provider==='scb'){
@@ -89,8 +89,11 @@ export async function recognizeSlip(image:Buffer) {
      parsed={date:retryParsed.date||parsed.date,time:retryParsed.time||parsed.time};
     }
     debug.date=dateText;
-    if(parsed.date&&!slip.date)slip.date=parsed.date;
-    if(parsed.time&&!slip.time)slip.time=parsed.time;
+    // The recognized MAKE header is a layout-specific source of truth. The
+    // full-image text can contain an ID that resembles a date, so do not retain
+    // that contradictory candidate when the header yields a complete timestamp.
+    if(parsed.date&&(!slip.date||slip.provider==='make'))slip.date=parsed.date;
+    if(parsed.time&&(!slip.time||slip.provider==='make'))slip.time=parsed.time;
    }
    if((slip.provider==='bbl'||slip.provider==='scb')&&(!slip.date||!slip.time)){
     const fallback=referenceDate(result.data.text,slip.provider);
@@ -111,6 +114,7 @@ export async function recognizeSlip(image:Buffer) {
      :await crop(r.amount);
     const amountText=(await worker.recognize(amountArea)).data.text;debug.amount=amountText;
     const match=slip.provider==='bbl'?amountText.match(/(?:^|\s)([1-9]\d{0,9}(?:,\d{3})*\.\d{2})(?!\d)/m)
+     :slip.provider==='paotang'?[...amountText.matchAll(/([1-9]\d{0,9}(?:,\d{3})*(?:\.\d{1,2})?)\s*(?:บาท|THB)?/gi)].at(-1)||null
      :amountText.match(/^\s*(\d[\d,]*(?:\.\d{2})?)\s*(?:บาท|THB|[a-z]{1,4})?\s*$/i);
     if(match)slip.amount=match[1];
    }

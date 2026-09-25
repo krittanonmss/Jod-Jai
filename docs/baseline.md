@@ -87,3 +87,7 @@ Next phase: Phase 1 — reliable event receipt, ordering, idempotency, durable r
 ## Phase 1 closure
 
 Phase 1 completed on 2026-09-26. `jod_events` now separates receipt, acknowledgement, saved result, and result delivery; all authorized events share per-user FIFO ordering. The worker stores safe timing deltas and error classes only, never image bytes, tokens, or OCR text. LINE validation accepted 14 representative message variants, and the response-repair preview found zero candidates at closure. Database regressions cover duplicate receipt/rate accounting, acknowledgement claim, rate boundary, lease reclaim, stale-lease finalization rejection, and an unrelated user's progress while another user is blocked.
+
+## Phase 2 closure
+
+The local private pilot used 5 MAKE, 4 Bangkok Bank, 4 SCB, and 9 Paotang original slips. Exact amount/timestamp results were MAKE 5/5 and 4/5, Bangkok Bank 4/4 and 4/4, SCB 4/4 and 4/4, and Paotang 9/9 and 8/9. Recipient was present in every supported pilot result; exact private name comparison remains local. Median warm OCR was approximately 1.6–2.0 seconds per image and p95 approximately 1.9–2.4 seconds. The remaining MAKE and Paotang timestamp failures are intentionally unknown rather than guessed from IDs, so the normal correction path asks the user for date/time. These samples do not meet the plan's ten-independent-original target, so the quality target is explicitly a pilot exception; gather more original layouts before making a broader accuracy claim.

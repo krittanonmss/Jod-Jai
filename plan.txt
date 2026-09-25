@@ -330,7 +330,7 @@ These describe document progress, not tool-level goal status.
 Initial tracker:
   Phase 0: DONE (baseline and design decisions recorded 2026-09-26)
   Phase 1: DONE (durable receipt, ordered queue, delivery recovery, validation, and crash evidence recorded 2026-09-26)
-  Phase 2: NOT_STARTED
+  Phase 2: DONE (pilot benchmark and conservative unknown policy recorded 2026-09-26)
   Phase 3: NOT_STARTED
   Phase 4: NOT_STARTED
   Phase 5: NOT_STARTED
@@ -545,7 +545,7 @@ Files: lib/ocr.ts, lib/slip-parser.ts, lib/domain.ts, lib/qr.ts,
 tests/ocr.test.ts, inspection/benchmark scripts.
 Output: Measured recipient, date/time, and amount extraction for four providers.
 
-[ ] P2.1 Expand and split fixtures.
+[x] P2.1 Expand and split fixtures. Coverage remains below ten originals for MAKE/BBL/SCB; this is recorded as pilot evidence, not target compliance.
     Aim for at least 10 independent originals per provider when available.
     Separate tuning and held-out acceptance by original slip/layout.
     Resizes of one original are variants, not independent samples.
@@ -553,7 +553,7 @@ Output: Measured recipient, date/time, and amount extraction for four providers.
     unsupported images, and the user's failed examples.
     Report insufficient coverage; request only missing variants.
 
-[ ] P2.2 Separate extraction stages.
+[x] P2.2 Separate extraction stages.
     Decode/rotate/bound -> detect provider/layout -> extract candidates
     -> validate -> select reliable values or unknown -> normalize.
     Track evidence source for each essential field.
@@ -561,34 +561,34 @@ Output: Measured recipient, date/time, and amount extraction for four providers.
     Avoid elaborate scoring without evidence of need.
     Tesseract confidence is not a calibrated correctness probability.
 
-[ ] P2.3 Fix amount extraction.
+[x] P2.3 Fix amount extraction.
     Prefer labeled amount/verified layout region.
     Exclude fee, balance, account number, reference, and unrelated numbers.
     Test lost digits (99.00 vs 9.00), commas, zero fees, and large values.
     Keep integer-satang checks and Paotang net-payment semantics.
     Do not automatically add transfer fees.
 
-[ ] P2.4 Fix dates/times.
+[x] P2.4 Fix dates/times.
     Handle observed Thai month forms, BE/CE years, numeric separators, and time labels.
     Validate actual calendar/time after extraction.
     Prove any reference-derived fallback for its specific format or return unknown.
     Do not turn an ID resembling a date into asserted transaction time.
 
-[ ] P2.5 Fix recipients.
+[x] P2.5 Fix recipients.
     Anchor to destination labels such as "ไปยัง" or "ไปที่".
     Separate sender, recipient, bank, account number, Biller ID, and reference.
     Preserve meaningful mixed Thai/English names and aliases.
     Avoid cleanup that erases meaningful name characters.
     Assert expected recipient text, not merely a nonempty string.
 
-[ ] P2.6 Close provider-specific problems.
+[x] P2.6 Close provider-specific problems.
     MAKE: date/time and amount digit loss; prevent unreliable crop overwrites.
     BBL: amount vs fee/reference, destination names including TRUEAPP.
     SCB: date/time, mixed-script/multi-line payee, destination label anchoring.
     Paotang: protect existing correctness and subsidy handling.
     Fixed-coordinate fallback only for recognized, tested layouts.
 
-[ ] P2.7 Make uncertainty usable.
+[x] P2.7 Make uncertainty usable.
     Ask only for the missing/conflicting essential field.
     Unsupported, undecodable, and oversized images get clear Thai next steps.
     Never invent values or ask for mandatory optional description.
@@ -597,7 +597,7 @@ Output: Measured recipient, date/time, and amount extraction for four providers.
     The complete required-field change across UI, legacy drafts, and SQL belongs
     to P3.1; do not claim that end-to-end confirmation is fixed by OCR alone.
 
-[ ] P2.8 Optimize measured bottlenecks within zero budget.
+[x] P2.8 Optimize measured bottlenecks within zero budget.
     Time download, decode, QR, language setup, worker init, full OCR, each crop,
     each retry, and DB separately.
     Stop unnecessary OCR passes once reliable essential fields are available.
@@ -606,7 +606,7 @@ Output: Measured recipient, date/time, and amount extraction for four providers.
     and cleanup; do not share mutable worker settings across concurrent jobs.
     Rerun all providers after each meaningful optimization.
 
-[ ] P2.9 Evaluate free alternatives only if needed.
+[x] P2.9 Evaluate free alternatives only if needed. Not needed: local Tesseract pilot processing is under two seconds per image; no external upload is authorized.
     Benchmark preprocessing, custom parsers, and free engines on the same held-out data.
     Check license, runtime/memory, packaging, hosting compatibility, and accuracy.
     Zero API price does not imply zero compute cost.
