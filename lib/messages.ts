@@ -31,16 +31,7 @@ function categoryRows(rows:SummaryRow[],total:number):Record<string,unknown>[] {
   if(!rows.length)return [empty('ยังไม่มีรายการในช่วงนี้',{label:'เริ่มจดรายจ่าย',text:'เพิ่มรายการ'})];
   return rows.slice(0,6).map(r=>{
     const pct=total>0?Math.round(Number(r.total_satang)*100/total):0;
-    const barWidth=Math.max(4,Math.round(pct/100*100));
-    return {
-      type:'box',layout:'vertical' as const,spacing:'xs' as const,contents:[
-        row(`${r.category} · ${pct}%`,money(Number(r.total_satang))+' บาท','#163D37'),
-        {type:'box',layout:'horizontal' as const,contents:[
-          {type:'box',layout:'horizontal' as const,width:`${barWidth}%`,backgroundColor:'#126858',cornerRadius:'sm' as const,height:'6px'},
-          {type:'box',layout:'horizontal' as const,flex:1}
-        ]}
-      ]
-    };
+    return row(`${r.category} · ${pct}%`,money(Number(r.total_satang))+' บาท','#163D37');
   });
 }
 export function summaryCard(options:SummaryCardOptions):Message {

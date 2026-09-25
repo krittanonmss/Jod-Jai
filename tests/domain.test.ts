@@ -68,6 +68,18 @@ test('summary and overview use compact flex messages',()=>{
  assert.equal(summary.type,'flex');assert.match(JSON.stringify(summary),/สรุปวันนี้/);assert.match(JSON.stringify(summary),/เพิ่มรายการ/);
  const overview=overviewCard(9600,[draft],1,[{category:'อาหาร',total_satang:9600}]);
  assert.equal(overview.type,'flex');assert.match(String(overview.altText),/ดูรายรับรายจ่าย/);assert.match(JSON.stringify(overview),/รายการรอยืนยัน/);
+ for(const message of [summary,overview]){
+  const visit=(node:unknown):void=>{
+   if(!node||typeof node!=='object')return;
+   const item=node as Record<string,unknown>;
+   if(item.type==='box')assert.ok(Array.isArray(item.contents)&&item.contents.length>0,'LINE Flex boxes need non-empty contents');
+   for(const value of Object.values(item)){
+    if(Array.isArray(value))value.forEach(visit);
+    else if(value&&typeof value==='object')visit(value);
+   }
+  };
+  visit(message);
+ }
 });
 test('destructive actions require explicit Flex confirmation and exports expire visibly',()=>{
  assert.match(JSON.stringify(clearHistoryConfirm()),/action=clear_history/);
