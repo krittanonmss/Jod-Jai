@@ -99,6 +99,11 @@ export function parseAnswer(field: string, answer: string): Record<string, unkno
   if (!answer || answer.length > 500) throw new Error('รายละเอียดต้องมี 1–500 ตัวอักษร');
   return { description: answer, category: inferCategory(answer) };
 }
+export function parseMissingAnswers(fields:string[],answer:string):Record<string,unknown>{
+ const values=answer.split(',').map(value=>value.trim());
+ if(values.length!==fields.length)throw new Error(`กรอก ${fields.length} ข้อมูล คั่นด้วย comma เช่น ${fields.includes('amount')?'99.00':''}${fields.includes('date')?', 2026-09-26 19:30':''}${fields.includes('recipient')?', ชื่อผู้รับ':''}`);
+ return Object.assign({},...fields.map((field,index)=>parseAnswer(field,values[index])));
+}
 export type PendingSelection={index:number;answer?:string;cancel:boolean};
 export function parsePendingSelection(input:string,count:number):PendingSelection|null {
   const cancel=input.match(/^ยกเลิก\s+(?:รายการ\s*)?(\d{1,2})$/);

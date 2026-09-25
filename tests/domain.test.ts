@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createHmac} from 'node:crypto';
-import {satang,thaiDate,normalizeSlip,normalizeMerchant,parseAnswer,missingField,Draft,parsePendingSelection} from '../lib/domain';
+import {satang,thaiDate,normalizeSlip,normalizeMerchant,parseAnswer,parseMissingAnswers,missingField,Draft,parsePendingSelection} from '../lib/domain';
 import {parseSlipText,parseDateLine,cleanRecipient} from '../lib/slip-parser';
 import {validSignature,fallbackMessages,LineDeliveryError} from '../lib/line';
 import {review,summaryCard,overviewCard,clearHistoryConfirm,deleteRecordConfirm,exportCard,managementMenu,moreMenu,personalDataMenu} from '../lib/messages';
@@ -76,7 +76,7 @@ test('summary and overview use compact flex messages',()=>{
  const summary=summaryCard({title:'สรุปวันนี้',period:'2026-09-25',total:15000,count:2,rows:[{category:'อาหาร',total_satang:12000},{category:'เดินทาง',total_satang:3000}],recent:[draft]});
  assert.equal(summary.type,'flex');assert.match(JSON.stringify(summary),/สรุปวันนี้/);assert.match(JSON.stringify(summary),/เพิ่มรายการ/);
  const overview=overviewCard(9600,[draft],1,[{category:'อาหาร',total_satang:9600}]);
- assert.equal(overview.type,'flex');assert.match(String(overview.altText),/ดูรายรับรายจ่าย/);assert.match(JSON.stringify(overview),/รายการรอยืนยัน/);
+ assert.equal(overview.type,'flex');assert.match(String(overview.altText),/ดูรายจ่าย/);assert.match(JSON.stringify(overview),/รายการรอยืนยัน/);
  for(const message of [summary,overview]){
   const visit=(node:unknown):void=>{
    if(!node||typeof node!=='object')return;
@@ -105,6 +105,10 @@ test('editing preserves validation and allows categorization',()=>{
  assert.deepEqual(parseAnswer('amount','22.50 บาท'),{amount_satang:2250});
  assert.deepEqual(parseAnswer('description','ค่าข้าว'),{description:'ค่าข้าว',category:'อาหาร'});
  assert.throws(()=>parseAnswer('amount','0'));assert.throws(()=>parseAnswer('date','yesterday'));assert.throws(()=>parseAnswer('category','wrong'));
+});
+test('missing OCR fields accept one comma-separated correction',()=>{
+ assert.deepEqual(parseMissingAnswers(['amount','date','recipient'],'99.00, 2026-09-26 19:30, ร้านทดสอบ'),{amount_satang:9900,occurred_at:'2026-09-26T12:30:00.000Z',recipient:'ร้านทดสอบ'});
+ assert.throws(()=>parseMissingAnswers(['amount','date'],'99.00'));
 });
 test('pending drafts can be selected with simple running numbers',()=>{
  assert.deepEqual(parsePendingSelection('1 ค่าอาหาร',3),{index:0,answer:'ค่าอาหาร',cancel:false});

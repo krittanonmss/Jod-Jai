@@ -1,6 +1,6 @@
 import {createHash,randomBytes} from 'node:crypto';
 import {db,assertDb} from './db';
-import {Draft,normalizeSlip,missingField,parseAnswer,money,normalizeMerchant,parsePendingSelection} from './domain';
+import {Draft,normalizeSlip,missingField,getMissingFields,parseAnswer,parseMissingAnswers,money,normalizeMerchant,parsePendingSelection} from './domain';
 import {getImage,getMessageQuota,LineEvent,Message} from './line';
 import {recognizeSlip} from './ocr';
 import {slipQrHash} from './qr';
@@ -14,7 +14,7 @@ function changeResponse(result:Change):Message[]{
   if(['saved','confirmed','updated'].includes(result.code))return [text(`บันทึกแล้ว ✅\n${d.description||d.recipient||'ไม่ระบุ'}\n${money(d.amount_satang!)} บาท • ${d.category}`)];
   if(result.code==='cancelled')return [text('ยกเลิกรายการแล้ว ไม่นับในยอดรายจ่ายครับ')];
   if(result.code==='deleted')return [text(`ลบรายการ ${d.description||'ล่าสุด'} แล้วครับ`)];
-  if(result.code==='stale')return [text('⚠️ ปุ่มนี้เก่าแล้ว (เวอร์ชันเปลี่ยนไป) กรุณาเปิด “รายการค้าง” หรือ “รายการล่าสุด” ใหม่เพื่อดูปุ่มล่าสุด'),review(d)];
+  if(result.code==='stale')return [text('ปุ่มนี้ใช้ไม่ได้แล้ว กรุณาเปิด “รายการค้าง” หรือ “รายการล่าสุด” ใหม่'),review(d)];
   return [...(result.code==='stale'?[text('ข้อมูลมีการแก้ไขแล้ว กรุณาตรวจสรุปล่าสุดก่อนยืนยันครับ')]:[]),review(d)];
 }
 async function change(event:LineEvent,d:Draft,action:string,patch:Record<string,unknown>={},version=d.version):Promise<Message[]>{
@@ -207,12 +207,12 @@ if(imageMessage){
   if(['ช่วยเหลือ','help','เริ่ม'].includes(input))return [text(help)];
   if(input==='ส่งสลิป')return [text('ส่งรูปสลิปเข้ามาในแชทนี้ได้เลยครับ ผมจะอ่านข้อมูลจากภาพ แล้วให้ตรวจสอบก่อนบันทึก')];
   if(input==='เพิ่มรายการ'||input.startsWith('เพิ่มรายการ '))return startManualExpense(event,input.replace(/^เพิ่มรายการ\s*/,'').trim());
-  if(['ดูรายรับรายจ่าย','ดูรายการ','รายรับรายจ่าย'].includes(input))return overview(user);
+  if(['ดูรายจ่าย','ดูรายรับรายจ่าย','ดูรายการ','รายรับรายจ่าย'].includes(input))return overview(user);
   if(input==='สรุปวันนี้')return totals(user,false);
   if(input==='สรุปเดือนนี้')return totals(user,true);
   if(input==='เมนูเพิ่มเติม')return [moreMenu()];
   if(input==='จัดการรายการ')return [managementMenu()];
-  if(input==='ข้อมูลของฉัน')return [personalDataMenu()];
+  if(input==='ข้อมูลของฉัน')return [personalDataMenu(await isOwnerUser(user))];
   if(input==='สถานะระบบ')return systemStatus(user);
   if(input==='เชิญเพื่อน')return createInvite(user);
   if(input==='ขอรหัสเชื่อมต่อ'||input==='รหัสเชื่อมต่อ'){
@@ -286,7 +286,7 @@ if(imageMessage){
   const field=d.edit_field||missingField(d);
   if(!field)return [text('รายละเอียดครบแล้วครับ กดยืนยันและบันทึก หรือเลือกแก้ไข'),review(d)];
   let patch:Record<string,unknown>;
-  try {patch=parseAnswer(field,answer);} catch(error){return [text((error as Error).message),review(d)];}
+  try {patch=d.edit_field?parseAnswer(field,answer):parseMissingAnswers(getMissingFields(d),answer);} catch(error){return [text((error as Error).message),review(d)];}
   return change(event,d,'patch',{...patch,edit_field:null});
  }
  return [text(help)];

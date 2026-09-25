@@ -333,7 +333,7 @@ Initial tracker:
   Phase 2: DONE (pilot benchmark and conservative unknown policy recorded 2026-09-26)
   Phase 3: DONE (three-field lifecycle and pagination recorded 2026-09-26)
   Phase 4: DONE (deterministic report ledger and Bangkok-boundary evidence recorded 2026-09-26)
-  Phase 5: NOT_STARTED
+  Phase 5: DONE (five-entry menu, concise Thai copy, and combined correction flow deployed 2026-09-26)
   Phase 6: NOT_STARTED
   Phase 7: NOT_STARTED
   Phase 8: BACKLOG
@@ -786,35 +786,35 @@ Entry: Stable commands/lifecycle/report data.
 Files: lib/messages.ts, rich-menu script/assets, app/page.tsx, public/.
 Output: Readable, coherent paths through the supported product.
 
-[ ] P5.1 Prepare wireframes as a coherent set.
+[x] P5.1 Prepare wireframes as a coherent set.
     Main menu, ack, missing-field question, review, pending page, overview,
     empty/error state, delete, clear confirmation.
-    Four large entry points: Send slip / Add expense / View expenses / More.
+    Five clear entry points: Send slip / Add expense / View expenses / Pending / More.
     Give slip upload primary visual weight where useful.
     Keep secondary actions in More rather than returning to eight equal small buttons.
 
-[ ] P5.2 Standardize Thai labels and hierarchy.
+[x] P5.2 Standardize Thai labels and hierarchy.
     Amount/date-time/payee first, optional detail/category afterward.
     Confirm/save primary; edit/cancel secondary.
     Technical versions should not dominate ordinary cards.
     Stale actions explain how to open the current record.
 
-[ ] P5.3 Preserve navigation while entering data.
+[x] P5.3 Preserve navigation while entering data.
     Menus work during active drafts and are not parsed as payee/description.
     Optional edits never become mandatory questions.
     Questions clearly identify the selected record and expected input.
 
-[ ] P5.4 Remove outdated promises.
+[x] P5.4 Remove outdated promises.
     No restore, bank verification, unlimited free capacity, or income support claims.
     Old recovery controls fail gracefully under D05.
     Help, menu, cards, and landing page match the command inventory.
 
-[ ] P5.5 Verify rendering and routes.
+[x] P5.5 Verify rendering and routes.
     Small/normal phone viewports and actual LINE when available.
     Check wrapping, mixed-script names, touch areas, and every action destination.
     API payload validation does not establish visual readability.
 
-[ ] P5.6 Update landing page and menu release procedure.
+[x] P5.6 Update landing page and menu release procedure.
     Working add-friend link/QR; short three-field explanation.
     Accurate ordinary-language image/data handling.
     Version menu assets/config and save previous active menu ID for rollback.

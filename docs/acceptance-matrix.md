@@ -49,8 +49,8 @@ This is the release traceability matrix for the expense-first release. The detai
 | REP-02 | 4 | Bangkok boundary | Day/month reports use correct [from, until) interval | SQL regression checks 23:59/00:00 at Bangkok month boundary. | PASS |
 | REP-03 | 4 | Total/category reconciliation | Headline equals categories/reference ledger to one satang | `jod_summary` is the common grouped source; total/count are summed from its rows. | PASS |
 | REP-04 | 4 | Report payloads | Empty/long states validate in LINE | 14 message variants including overview and summary validate through LINE. | PASS |
-| UX-01 | 5 | Main journeys | Slip, manual, overview finish without guessing commands | Rich menu has four main entries; journey review missing | PENDING |
-| UX-02 | 5 | Truthful copy | No income, restore, bank-verification, or unlimited-free promise | README/help recovery wording remains | BASELINE GAP |
+| UX-01 | 5 | Main journeys | Slip, manual, overview finish without guessing commands | Five-entry menu routes to slip, manual entry, expense overview, pending items, and grouped extras; combined missing-field input uses commas. LINE payload validation and generated-menu visual check pass. | PASS |
+| UX-02 | 5 | Truthful copy | No income, restore, bank-verification, or unlimited-free promise | Customer copy is expense-only; delete/clear cards explicitly say data cannot be restored; OCR limitation remains documented. | PASS |
 | DATA-01 | 6 | CSV completeness | All selected rows beyond DB API page limit | One-query export; no large test | PENDING |
 | DATA-02 | 6 | Export access | Token expiration/revoke/clear behavior is intentional | Invalid token smoke only | PARTIAL |
 | DATA-03 | 6 | Cross-user isolation | Queries, RPCs, export, replay, and suggestions isolated | Existing DB cross-user mutation/summary checks | PARTIAL |

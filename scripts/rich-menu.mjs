@@ -15,7 +15,7 @@ const richMenuSpec = path.join(outDir, 'jod-jai-rich-menu.json');
 const W = 2500;
 const H = 1686;
 const rowH = 843;
-const columns = [0, 1250, 2500];
+const columns = [0, 833, 1666, 2500];
 
 function esc(value) {
  return String(value).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[ch]));
@@ -24,8 +24,9 @@ function esc(value) {
 const menuItems = [
  { title: 'ส่งสลิป', subtitle: 'แนบรูปเพื่ออ่านข้อมูล', command: 'ส่งสลิป', icon: 'receipt', tone: '#126858' },
  { title: 'เพิ่มรายการ', subtitle: 'กรอกค่าใช้จ่ายเอง', command: 'เพิ่มรายการ', icon: 'plus', tone: '#E26D5A' },
- { title: 'ดูรายจ่าย', subtitle: 'ภาพรวมและรายการล่าสุด', command: 'ดูรายรับรายจ่าย', icon: 'list', tone: '#2E7D6B' },
- { title: 'เมนูเพิ่มเติม', subtitle: 'รายการค้าง · สรุป · ตั้งค่า', command: 'เมนูเพิ่มเติม', icon: 'manage', tone: '#A84F73' },
+ { title: 'ดูรายจ่าย', subtitle: 'สรุปและรายการล่าสุด', command: 'ดูรายจ่าย', icon: 'list', tone: '#2E7D6B' },
+ { title: 'รายการค้าง', subtitle: 'ตรวจและยืนยัน', command: 'รายการค้าง', icon: 'pending', tone: '#A84F73' },
+ { title: 'เพิ่มเติม', subtitle: 'ส่งออก · ตั้งค่า · ช่วยเหลือ', command: 'เมนูเพิ่มเติม', icon: 'manage', tone: '#5D6E91' },
 ];
 
 function iconSvg(type, x, y, color) {
@@ -44,11 +45,10 @@ function iconSvg(type, x, y, color) {
 
 function menuSvg() {
  const cells = menuItems.map((item, i) => {
-  const col = i % 2;
-  const row = Math.floor(i / 2);
-  const x = columns[col] + 28;
+  const top=i<3;const col=top?i:i-3;const row=top?0:1;
+  const x=(top?columns[col]:col*1250)+28;
   const y = row * rowH + 46;
-  const w = columns[col + 1] - columns[col] - 56;
+  const w=(top?columns[col+1]-columns[col]:1250)-56;
   const h = rowH - 92;
   return `<g>
    <rect x="${x}" y="${y}" width="${w}" height="${h}" rx="54" fill="#FFFFFF" fill-opacity="0.88"/>
@@ -71,10 +71,9 @@ function menuSvg() {
 
 function richMenuObject() {
  const areas = menuItems.map((item, i) => {
-  const col = i % 2;
-  const row = Math.floor(i / 2);
+  const top=i<3;const col=top?i:i-3;const row=top?0:1;
   return {
-   bounds: { x: columns[col], y: row * rowH, width: columns[col + 1] - columns[col], height: rowH },
+   bounds: { x: top?columns[col]:col*1250, y: row * rowH, width: top?columns[col+1]-columns[col]:1250, height: rowH },
    action: { type: 'message', text: item.command },
   };
  });
