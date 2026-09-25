@@ -1,7 +1,7 @@
 import {createHash,randomBytes} from 'node:crypto';
 import {db,assertDb} from './db';
 import {Draft,normalizeSlip,missingField,parseAnswer,money,normalizeMerchant,parsePendingSelection} from './domain';
-import {getImage,getMessageQuota,LineEvent,Message,pushMessages} from './line';
+import {getImage,getMessageQuota,LineEvent,Message} from './line';
 import {recognizeSlip} from './ocr';
 import {slipQrHash} from './qr';
 import {text,review,editMenu,help,summaryCard,overviewCard,latestMenu,deleteRecordConfirm,clearHistoryConfirm,exportCard,managementMenu,personalDataMenu,pendingCarousel} from './messages';
@@ -147,7 +147,6 @@ if(event.type==='message' && event.message?.type==='image'){
     const qrDuplicate=await db().from('jod_drafts').select('*').eq('user_id',user).eq('qr_hash',qrHash).neq('status','cancelled').maybeSingle();assertDb(qrDuplicate.error);
     if(qrDuplicate.data){const d=qrDuplicate.data as Draft;return [text(`พบ QR สลิปเดิม #${d.short_code} จึงไม่สร้างซ้ำครับ`),...(d.status==='draft'?[review(d)]:[])];}
    }
-   await pushMessages(user,[text('กำลังอ่านสลิป...')],`${event.webhookEventId}:processing`);
    const result=await recognizeSlip(image);
   if(result.slip.provider==='unsupported')return [text('ยังระบุแบบสลิปไม่ได้ครับ รองรับเป๋าตัง, MAKE, Bangkok Bank และ SCB กรุณาส่งภาพเต็มที่ชัดเจน')];
   const values=await applyMerchantSuggestion(user,normalizeSlip(result.slip));

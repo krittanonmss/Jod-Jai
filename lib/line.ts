@@ -23,6 +23,13 @@ export async function pushMessages(to: string, messages: Message[], retryKey: st
  });
  if (!response.ok && !(response.status===409 && response.headers.has('x-line-accepted-request-id'))) throw new Error(`LINE push HTTP ${response.status}: ${(await response.text()).slice(0,200)}`);
 }
+export async function replyMessages(replyToken: string, messages: Message[]) {
+ const response = await fetch('https://api.line.me/v2/bot/message/reply', {
+  method:'POST', headers:{Authorization:`Bearer ${required('LINE_CHANNEL_ACCESS_TOKEN')}`,'Content-Type':'application/json'},
+  body:JSON.stringify({replyToken,messages}),signal:AbortSignal.timeout(10000),
+ });
+ if (!response.ok) throw new Error(`LINE reply HTTP ${response.status}: ${(await response.text()).slice(0,200)}`);
+}
 export async function getImage(messageId: string): Promise<Buffer> {
  const response = await fetch(`https://api-data.line.me/v2/bot/message/${encodeURIComponent(messageId)}/content`,{
   headers:{Authorization:`Bearer ${required('LINE_CHANNEL_ACCESS_TOKEN')}`},signal:AbortSignal.timeout(20000),
