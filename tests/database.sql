@@ -1,6 +1,6 @@
 begin;
 do $$
-declare d uuid; confirmed_d uuid; other_d uuid; r jsonb; total bigint; claim public.jod_events; accepted jsonb; old_lease uuid; affected integer;
+declare d uuid; confirmed_d uuid; other_d uuid; r jsonb; total bigint; claim public.jod_events; accepted jsonb; old_lease uuid; affected integer; report_total bigint; report_count bigint;
 begin
  insert into public.jod_drafts(user_id,message_id,image_hash,provider,amount_satang,occurred_at,recipient,description,category,reference)
  values('__jod_test_owner__','__jod_test_message__','__jod_test_hash__','scb',200000,'2026-09-22T12:40:00Z','ผู้รับทดสอบ','ทดสอบ','อื่น ๆ','__jod_ref__') returning id into d;
@@ -23,6 +23,14 @@ begin
  if total<>200000 then raise exception 'Incorrect confirmed total';end if;
  select coalesce(sum(total_satang),0) into total from public.jod_summary('another_user','2026-09-01','2026-10-01');
  if total<>0 then raise exception 'Cross-user summary';end if;
+ insert into public.jod_drafts(user_id,message_id,image_hash,provider,amount_satang,occurred_at,recipient,category,status,deleted_at) values
+ ('__report_user__','__report_before__','__report_before_hash__','manual',100,'2026-09-30T16:59:00Z','A','อาหาร','confirmed',null),
+ ('__report_user__','__report_start__','__report_start_hash__','manual',200,'2026-09-30T17:00:00Z','B','เดินทาง','confirmed',null),
+ ('__report_user__','__report_draft__','__report_draft_hash__','manual',300,'2026-09-30T18:00:00Z','C','อาหาร','draft',null),
+ ('__report_user__','__report_cancel__','__report_cancel_hash__','manual',400,'2026-09-30T18:00:00Z','D','อาหาร','cancelled',null),
+ ('__report_user__','__report_deleted__','__report_deleted_hash__','manual',500,'2026-09-30T18:00:00Z','E','อาหาร','confirmed',now());
+ select coalesce(sum(total_satang),0),coalesce(sum(entries),0) into report_total,report_count from public.jod_summary('__report_user__','2026-09-30T17:00:00Z','2026-10-01T17:00:00Z');
+ if report_total<>200 or report_count<>1 then raise exception 'Report boundary or deleted-state filtering failed';end if;
  r:=public.jod_change_confirmed('__jod_confirmed_wrong__','another_user',confirmed_d,3,'delete');
  if r->>'code'<>'not_found' then raise exception 'Cross-user confirmed deletion allowed';end if;
  r:=public.jod_change_confirmed('__jod_edit_confirmed__','__jod_test_owner__',confirmed_d,3,'patch','{"description":"แก้ไขหลังยืนยัน"}');

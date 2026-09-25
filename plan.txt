@@ -332,7 +332,7 @@ Initial tracker:
   Phase 1: DONE (durable receipt, ordered queue, delivery recovery, validation, and crash evidence recorded 2026-09-26)
   Phase 2: DONE (pilot benchmark and conservative unknown policy recorded 2026-09-26)
   Phase 3: DONE (three-field lifecycle and pagination recorded 2026-09-26)
-  Phase 4: NOT_STARTED
+  Phase 4: DONE (deterministic report ledger and Bangkok-boundary evidence recorded 2026-09-26)
   Phase 5: NOT_STARTED
   Phase 6: NOT_STARTED
   Phase 7: NOT_STARTED
@@ -734,12 +734,12 @@ Entry: Phase 3 lifecycle and D01/D06 semantics.
 Files: report code in lib/bot.ts, lib/messages.ts, jod_summary RPC, report tests.
 Output: Overview/today/month/recent agree with a deterministic reference ledger.
 
-[ ] P4.1 Build a reference ledger fixture.
+[x] P4.1 Build a reference ledger fixture.
     Multiple users/categories, confirmed/draft/cancelled/deleted, edits,
     backdated transactions, Bangkok midnight/month/year boundaries.
     Use a controlled clock rather than expected values coupled to today's date.
 
-[ ] P4.2 Define report meanings.
+[x] P4.2 Define report meanings.
     Bangkok [from, until) boundaries.
     Proposed month view: month start through end of today; exclude future dates
     beyond today. Verify/document this choice.
@@ -747,22 +747,22 @@ Output: Overview/today/month/recent agree with a deterministic reference ledger.
     "Last saved" management may use confirmed_at; label distinctly.
     Daily monthly average: total divided by elapsed days including today.
 
-[ ] P4.3 Make every number truthful.
+[x] P4.3 Make every number truthful.
     Only current confirmed, nondeleted records under the edit policy.
     Actual pending count, not page size.
     Category rows reconcile to the headline; aggregate hidden categories or paginate.
     Never present the first six categories as the complete breakdown.
 
-[ ] P4.4 Separate report data from rendering.
+[x] P4.4 Separate report data from rendering.
     One tested report object feeds Flex and plain-text fallback.
     Parallelize independent queries only if consistency remains correct.
     If concurrent edits cause mismatched totals/details, use a consistent query/RPC.
 
-[ ] P4.5 Correct naming and compatibility.
+[x] P4.5 Correct naming and compatibility.
     Expense-only labels; legacy text aliases still work.
     No unimplemented income/balance claims.
 
-[ ] P4.6 Validate extremes.
+[x] P4.6 Validate extremes.
     Empty, long mixed-script names, missing optional descriptions, large numbers,
     many categories, and edited/deleted transactions.
     Use recipient/generic label when description is absent.

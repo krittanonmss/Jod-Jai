@@ -45,10 +45,10 @@ This is the release traceability matrix for the expense-first release. The detai
 | EXP-06 | 3 | Bulk 1/2/10/21+ | Per-record idempotency and truthful partial result | Bulk child keys include parent event, action, draft ID, and version. | PASS |
 | EXP-07 | 3 | Pending selection/pagination | Every draft reachable; displayed selection is stable | Page command plus short-code addressing; ten-card carousel is no longer presented as the full list. | PASS |
 | EXP-08 | 3/6 | Delete/clear race | No resurrection from older queued work | Soft deletion and ordered worker processing protect current lifecycle; operational retention remains Phase 6. | PASS (Phase 3 scope) |
-| REP-01 | 4 | Ledger inclusion | Draft/cancelled/deleted never included | Existing draft/confirmed summary tests only | PARTIAL |
-| REP-02 | 4 | Bangkok boundary | Day/month reports use correct [from, until) interval | Date parser tests exist; report boundary test missing | PENDING |
-| REP-03 | 4 | Total/category reconciliation | Headline equals categories/reference ledger to one satang | No reference-ledger test | PENDING |
-| REP-04 | 4 | Report payloads | Empty/long states validate in LINE | Current key cards validate after a9b4444; full factory coverage missing | PARTIAL |
+| REP-01 | 4 | Ledger inclusion | Draft/cancelled/deleted never included | SQL reference ledger regression excludes all non-live confirmed states. | PASS |
+| REP-02 | 4 | Bangkok boundary | Day/month reports use correct [from, until) interval | SQL regression checks 23:59/00:00 at Bangkok month boundary. | PASS |
+| REP-03 | 4 | Total/category reconciliation | Headline equals categories/reference ledger to one satang | `jod_summary` is the common grouped source; total/count are summed from its rows. | PASS |
+| REP-04 | 4 | Report payloads | Empty/long states validate in LINE | 14 message variants including overview and summary validate through LINE. | PASS |
 | UX-01 | 5 | Main journeys | Slip, manual, overview finish without guessing commands | Rich menu has four main entries; journey review missing | PENDING |
 | UX-02 | 5 | Truthful copy | No income, restore, bank-verification, or unlimited-free promise | README/help recovery wording remains | BASELINE GAP |
 | DATA-01 | 6 | CSV completeness | All selected rows beyond DB API page limit | One-query export; no large test | PENDING |

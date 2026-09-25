@@ -96,22 +96,22 @@ async function totals(user:string,monthly:boolean):Promise<Message[]>{
  const {data,error}=await db().rpc('jod_summary',{p_user:user,p_from:from,p_to:until});
  assertDb(error);let total=0,count=0;
  for(const row of data||[]){total+=Number(row.total_satang);count+=Number(row.entries);}
- const recent=await db().from('jod_drafts').select('*').eq('user_id',user).eq('status','confirmed').gte('occurred_at',from).lt('occurred_at',until).order('occurred_at',{ascending:false}).limit(monthly?5:3);
+ const recent=await db().from('jod_drafts').select('*').eq('user_id',user).eq('status','confirmed').is('deleted_at',null).gte('occurred_at',from).lt('occurred_at',until).order('occurred_at',{ascending:false}).order('id',{ascending:false}).limit(monthly?5:3);
  assertDb(recent.error);
  const days=monthly?Math.max(1,Math.min(thaiNow.getUTCDate(),new Date(Date.UTC(thaiNow.getUTCFullYear(),thaiNow.getUTCMonth()+1,0)).getUTCDate())):1;
  return [summaryCard({title:`สรุป${monthly?'เดือนนี้':'วันนี้'}`,period:monthly?date.slice(0,7):date,total,count,rows:data||[],recent:recent.data as Draft[],average:monthly?Math.round(total/days):undefined})];
 }
 async function overview(user:string):Promise<Message[]> {
- const confirmed=await db().from('jod_drafts').select('*').eq('user_id',user).eq('status','confirmed').order('confirmed_at',{ascending:false}).limit(8);
- assertDb(confirmed.error);
- const drafts=await pending(user);
+ const confirmed=await db().from('jod_drafts').select('*').eq('user_id',user).eq('status','confirmed').is('deleted_at',null).order('occurred_at',{ascending:false}).order('id',{ascending:false}).limit(8);
+ const pendingCount=await db().from('jod_drafts').select('id',{count:'exact',head:true}).eq('user_id',user).eq('status','draft').is('deleted_at',null);
+ assertDb(confirmed.error);assertDb(pendingCount.error);
  const thaiNow=new Date(Date.now()+7*3600000); const date=thaiNow.toISOString().slice(0,10);
  const from=date.slice(0,7)+'-01T00:00:00+07:00';
  const until=new Date(Date.UTC(thaiNow.getUTCFullYear(),thaiNow.getUTCMonth(),thaiNow.getUTCDate()+1)-7*3600000).toISOString();
  const summary=await db().rpc('jod_summary',{p_user:user,p_from:from,p_to:until});
  assertDb(summary.error);let total=0;
  for(const row of summary.data||[])total+=Number(row.total_satang);
- return [overviewCard(total,confirmed.data as Draft[],drafts.length,summary.data||[])];
+ return [overviewCard(total,confirmed.data as Draft[],pendingCount.count||0,summary.data||[])];
 }
 function thaiNowIso():string {
  const now = new Date();
