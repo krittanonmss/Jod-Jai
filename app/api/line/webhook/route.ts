@@ -18,12 +18,14 @@ const schema=z.object({events:z.array(z.object({
  postback:z.object({data:z.string()}).optional(),
  })).max(100)});
 const INLINE_COMMANDS=new Set(['ช่วยเหลือ','help','เริ่ม','สรุปวันนี้','สรุปเดือนนี้','ดูรายรับรายจ่าย','ดูรายการ','รายรับรายจ่าย','จัดการรายการ','ข้อมูลของฉัน','สถานะระบบ','เชิญเพื่อน','ผู้ใช้งาน','ขอรหัสเชื่อมต่อ','ยืนยันทั้งหมด','ยกเลิกทั้งหมด','ยืนยันหมวด','ยกเลิกหมวด','กู้คืนประวัติ']);
-async function processInline(event:LineEvent){
+async function processInline(event:LineEvent):Promise<boolean>{
   try{
    const messages=await processEvent(event);
    if(messages.length)await pushMessages(event.source.userId!,messages,`inline-${event.webhookEventId}`);
+   return true;
   }catch(err){
    console.error('Inline process failed',event.webhookEventId,err);
+   return false;
   }
 }
 export async function POST(request:Request){
@@ -40,7 +42,7 @@ export async function POST(request:Request){
      const rl=await takeRateLimit(user);
      const msgText=e.message?.text?.trim();
       if(e.type==='message' && e.message?.type==='text' && msgText && INLINE_COMMANDS.has(msgText)){
-      if(rl.allowed)await processInline(e);
+      if(rl.allowed && !await processInline(e))events.push(e);
      }else if(rl.allowed){
       events.push(e);
      }
@@ -52,7 +54,9 @@ export async function POST(request:Request){
      events.push({...e,type:'follow',message:undefined});
     } else if(e.type==='message' && e.message?.type==='text' && await tryJoinInvite(user,e.message.text||'')){
      events.push({...e,type:'follow',message:undefined});
-    }
+    } else if(e.type==='message' && e.message?.type==='text'){
+     pushMessages(user,[text('ยังไม่ได้เชื่อมบัญชี Jod-Jai ครับ\n\nถ้าคุณเป็นเจ้าของบัญชี ให้พิมพ์ “เชื่อมต่อ <รหัส>”\nถ้าเป็นผู้ใช้ที่ได้รับเชิญ ให้พิมพ์ “เข้าร่วม <รหัส>”')],`unauthorized-${e.webhookEventId}`).catch(err=>console.error('Unauthorized notice failed',e.webhookEventId,err));
+     }
    }
    if(events.length){
     const {error}=await db().from('jod_events').upsert(events.map(e=>({event_id:e.webhookEventId,user_id:e.source.userId!,occurred_ms:e.timestamp,payload:e})),{onConflict:'event_id',ignoreDuplicates:true});assertDb(error);
