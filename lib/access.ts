@@ -8,10 +8,8 @@ export function pairingMatches(input:string,code:string):boolean{
 }
 export async function isAuthorizedUser(user:string):Promise<boolean>{
  if(allowedUser(user))return true;
- const member=await db().from('jod_members').select('user_id').eq('user_id',user).eq('status','active').maybeSingle();assertDb(member.error);
- if(member.data)return true;
- const {data,error}=await db().from('jod_owner').select('user_id').eq('singleton',true).maybeSingle();assertDb(error);
- return data?.user_id===user;
+ const {data,error}=await db().rpc('jod_is_authorized',{p_user:user});assertDb(error);
+ return data===true;
 }
 export async function isOwnerUser(user:string):Promise<boolean>{
  const configured=(process.env.LINE_ALLOWED_USER_IDS||'').split(',').map(value=>value.trim()).filter(Boolean);
@@ -32,4 +30,9 @@ export async function tryJoinInvite(user:string,message:string):Promise<boolean>
 export async function takeRateLimit(user:string):Promise<{allowed:boolean,count:number,limit:number}>{
   const {data,error}=await db().rpc('jod_take_rate_limit',{p_user:user,p_limit:30,p_seconds:60});assertDb(error);
   return data as {allowed:boolean,count:number,limit:number};
+}
+export async function authorizeAndRate(user:string):Promise<{authorized:boolean,allowed:boolean,count:number,limit:number}>{
+ if(allowedUser(user))return {authorized:true,...await takeRateLimit(user)};
+ const {data,error}=await db().rpc('jod_authorize_and_rate',{p_user:user,p_limit:30,p_seconds:60});assertDb(error);
+ return data as {authorized:boolean,allowed:boolean,count:number,limit:number};
 }

@@ -30,11 +30,10 @@ async function latestConfirmed(user:string):Promise<Draft|null>{
  const {data,error}=await db().from('jod_drafts').select('*').eq('user_id',user).eq('status','confirmed').order('confirmed_at',{ascending:false}).limit(1).maybeSingle();
  assertDb(error);return data as Draft|null;
 }
-async function applyMerchantSuggestion(user:string,values:ReturnType<typeof normalizeSlip>){
+function applyMerchantSuggestion(values:ReturnType<typeof normalizeSlip>,previous:{recipient:string|null;description:string|null;category:string}[]){
  if(values.description||!values.recipient)return values;
- const previous=await db().from('jod_drafts').select('recipient,description,category').eq('user_id',user).eq('status','confirmed').not('recipient','is',null).not('description','is',null).order('confirmed_at',{ascending:false}).limit(200);assertDb(previous.error);
  const key=normalizeMerchant(values.recipient);
- const match=previous.data?.find(row=>normalizeMerchant(row.recipient||'')===key);
+ const match=previous.find(row=>normalizeMerchant(row.recipient||'')===key);
  return match?{...values,description:match.description,category:match.category}:values;
 }
 async function systemStatus(user:string):Promise<Message[]> {
@@ -142,18 +141,23 @@ if(imageMessage){
    const existing=await existingPromise!;
    assertDb(existing.error);if(existing.data){const d=existing.data as Draft;return d.status==='draft'?[review(d)]:changeResponse({code:d.status,draft:d});}
    const image=await getImage(imageMessage.id);const hash=createHash('sha256').update(image).digest('hex');
-   const [duplicate,qrHash]=await Promise.all([
+   const qrHash=await slipQrHash(image);
+   const [duplicate,qrDuplicate]=await Promise.all([
     db().from('jod_drafts').select('*').eq('user_id',user).eq('image_hash',hash).neq('status','cancelled').maybeSingle(),
-    slipQrHash(image),
+    qrHash?db().from('jod_drafts').select('*').eq('user_id',user).eq('qr_hash',qrHash).neq('status','cancelled').maybeSingle():Promise.resolve(null),
    ]);
    assertDb(duplicate.error);if(duplicate.data){const d=duplicate.data as Draft;return [text(`สลิปนี้มีแล้ว #${d.short_code} จึงไม่สร้างซ้ำครับ`),...(d.status==='draft'?[review(d)]:[])];}
-   if(qrHash){
-    const qrDuplicate=await db().from('jod_drafts').select('*').eq('user_id',user).eq('qr_hash',qrHash).neq('status','cancelled').maybeSingle();assertDb(qrDuplicate.error);
+   if(qrDuplicate){
+    assertDb(qrDuplicate.error);
     if(qrDuplicate.data){const d=qrDuplicate.data as Draft;return [text(`พบ QR สลิปเดิม #${d.short_code} จึงไม่สร้างซ้ำครับ`),...(d.status==='draft'?[review(d)]:[])];}
    }
-   const result=await recognizeSlip(image);
+   const [result,previous]=await Promise.all([
+    recognizeSlip(image),
+    db().from('jod_drafts').select('recipient,description,category').eq('user_id',user).eq('status','confirmed').not('recipient','is',null).not('description','is',null).order('confirmed_at',{ascending:false}).limit(200),
+   ]);
   if(result.slip.provider==='unsupported')return [text('ยังระบุแบบสลิปไม่ได้ครับ รองรับเป๋าตัง, MAKE, Bangkok Bank และ SCB กรุณาส่งภาพเต็มที่ชัดเจน')];
-  const values=await applyMerchantSuggestion(user,normalizeSlip(result.slip));
+  assertDb(previous.error);
+  const values=applyMerchantSuggestion(normalizeSlip(result.slip),previous.data||[]);
   if(values.amount_satang===0)values.amount_satang=null;
   const saved=await db().from('jod_drafts').insert({...values,user_id:user,message_id:imageMessage.id,image_hash:hash,qr_hash:qrHash}).select('*').single();
   if(saved.error?.code==='23505')return [text('พบสลิปหรือเลขอ้างอิงซ้ำ จึงไม่สร้างรายจ่ายซ้ำครับ พิมพ์ รายการค้าง เพื่อดูรายการเดิม')];

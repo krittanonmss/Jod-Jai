@@ -2,7 +2,7 @@ import {after} from 'next/server';
 import {z} from 'zod';
 import {LineEvent,pushMessages,replyMessages,validSignature} from '@/lib/line';
 import {required} from '@/lib/config';
-import {isAuthorizedUser,takeRateLimit,tryJoinInvite,tryPairOwner} from '@/lib/access';
+import {authorizeAndRate,tryJoinInvite,tryPairOwner} from '@/lib/access';
 import {db,assertDb} from '@/lib/db';
 import {drainJobs} from '@/lib/jobs';
 import {text} from '@/lib/messages';
@@ -39,8 +39,8 @@ export async function POST(request:Request){
    for(const e of body.events){
     const user=e.source.userId;
     if(e.source.type!=='user'||!user||!['message','postback','follow'].includes(e.type))continue;
-    if(await isAuthorizedUser(user)){
-     const rl=await takeRateLimit(user);
+    const rl=await authorizeAndRate(user);
+    if(rl.authorized){
      const msgText=e.message?.text?.trim();
      if(e.type==='message' && e.message?.type==='image'){
       if(rl.allowed){
