@@ -4,7 +4,7 @@ import {createHmac} from 'node:crypto';
 import {satang,thaiDate,normalizeSlip,parseAnswer,missingField,Draft} from '../lib/domain';
 import {parseSlipText,parseDateLine} from '../lib/slip-parser';
 import {validSignature} from '../lib/line';
-import {review,summaryCard,overviewCard,clearHistoryConfirm,deleteRecordConfirm,exportCard} from '../lib/messages';
+import {review,summaryCard,overviewCard,clearHistoryConfirm,deleteRecordConfirm,exportCard,managementMenu,personalDataMenu} from '../lib/messages';
 import {allowedUser} from '../lib/config';
 test('money uses integer satang, rejects negatives and ambiguous decimals',()=>{
  assert.equal(satang('2,000.05'),200005);assert.equal(satang('0.29'),29);
@@ -54,6 +54,10 @@ test('destructive actions require explicit Flex confirmation and exports expire 
  assert.match(JSON.stringify(deleteRecordConfirm(draft)),/delete_confirmed/);
  const exported=exportCard('https://example.test/api/export?token=abc',3);
  assert.match(JSON.stringify(exported),/10 นาที/);assert.match(JSON.stringify(exported),/ดาวน์โหลด CSV/);
+});
+test('rich menu groups expose current record and data controls',()=>{
+ const records=JSON.stringify(managementMenu());assert.match(records,/แก้รายการล่าสุด/);assert.match(records,/ลบรายการล่าสุด/);
+ const data=JSON.stringify(personalDataMenu());assert.match(data,/ส่งออกข้อมูล/);assert.match(data,/ล้างประวัติ/);
 });
 test('editing preserves validation and allows categorization',()=>{
  assert.deepEqual(parseAnswer('amount','22.50 บาท'),{amount_satang:2250});

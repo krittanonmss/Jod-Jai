@@ -15,19 +15,21 @@ const richMenuSpec = path.join(outDir, 'jod-jai-rich-menu.json');
 const W = 2500;
 const H = 1686;
 const rowH = 843;
-const columns = [0, 833, 1667, 2500];
+const columns = [0, 625, 1250, 1875, 2500];
 
 function esc(value) {
  return String(value).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[ch]));
 }
 
 const menuItems = [
- { title: 'ส่งสลิป', subtitle: 'ถ่ายหรือแนบรูปสลิป', command: 'ส่งสลิป', icon: 'receipt', tone: '#126858' },
+ { title: 'ส่งสลิป', subtitle: 'แนบรูปเพื่ออ่านข้อมูล', command: 'ส่งสลิป', icon: 'receipt', tone: '#126858' },
  { title: 'เพิ่มรายการ', subtitle: 'กรอกค่าใช้จ่ายเอง', command: 'เพิ่มรายการ', icon: 'plus', tone: '#E26D5A' },
- { title: 'ดูรายการ', subtitle: 'รายรับ/รายจ่าย', command: 'ดูรายรับรายจ่าย', icon: 'list', tone: '#2E7D6B' },
+ { title: 'ดูรายการ', subtitle: 'ภาพรวมและรายการล่าสุด', command: 'ดูรายรับรายจ่าย', icon: 'list', tone: '#2E7D6B' },
+ { title: 'รายการค้าง', subtitle: 'ตรวจรายการรอยืนยัน', command: 'รายการค้าง', icon: 'pending', tone: '#B87D42' },
  { title: 'สรุปวันนี้', subtitle: 'ยอดใช้จ่ายวันนี้', command: 'สรุปวันนี้', icon: 'sun', tone: '#D99A2B' },
- { title: 'สรุปเดือนนี้', subtitle: 'รวมตามหมวดหมู่', command: 'สรุปเดือนนี้', icon: 'chart', tone: '#547C78' },
- { title: 'ช่วยเหลือ', subtitle: 'ดูวิธีใช้ Jod-Jai', command: 'ช่วยเหลือ', icon: 'help', tone: '#6B8F71' },
+ { title: 'สรุปเดือนนี้', subtitle: 'รวมรายจ่ายตามหมวด', command: 'สรุปเดือนนี้', icon: 'chart', tone: '#547C78' },
+ { title: 'จัดการรายการ', subtitle: 'ดู แก้ไข หรือลบ', command: 'จัดการรายการ', icon: 'manage', tone: '#A84F73' },
+ { title: 'ข้อมูลของฉัน', subtitle: 'ส่งออก ล้าง และช่วยเหลือ', command: 'ข้อมูลของฉัน', icon: 'data', tone: '#6B8F71' },
 ];
 
 function iconSvg(type, x, y, color) {
@@ -38,25 +40,28 @@ function iconSvg(type, x, y, color) {
  if (type === 'list') return `<rect ${a} x="${x+31}" y="${y+32}" width="116" height="126" rx="18"/><path ${a} d="M${x+61} ${y+70}h58M${x+61} ${y+101}h58M${x+61} ${y+132}h58"/>`;
  if (type === 'sun') return `<circle ${a} cx="${x+88}" cy="${y+94}" r="42"/><path ${a} d="M${x+88} ${y+16}v25M${x+88} ${y+147}v25M${x+10} ${y+94}h25M${x+141} ${y+94}h25M${x+33} ${y+39}l18 18M${x+125} ${y+131}l18 18M${x+143} ${y+39}l-18 18M${x+51} ${y+131}l-18 18"/>`;
  if (type === 'chart') return `<path ${a} d="M${x+34} ${y+154}h120"/><rect ${a} x="${x+49}" y="${y+88}" width="24" height="66" rx="8"/><rect ${a} x="${x+83}" y="${y+54}" width="24" height="100" rx="8"/><rect ${a} x="${x+117}" y="${y+24}" width="24" height="130" rx="8"/>`;
+ if (type === 'pending') return `<circle ${a} cx="${x+88}" cy="${y+94}" r="68"/><path ${a} d="M${x+88} ${y+52}v46l31 20M${x+39} ${y+33}l-17 17M${x+137} ${y+33}l17 17"/>`;
+ if (type === 'manage') return `<path ${a} d="M${x+31} ${y+45}h74M${x+31} ${y+94}h116M${x+31} ${y+143}h88"/><circle ${a} cx="${x+126}" cy="${y+45}" r="13"/><circle ${a} cx="${x+52}" cy="${y+94}" r="13"/><circle ${a} cx="${x+140}" cy="${y+143}" r="13"/>`;
+ if (type === 'data') return `<ellipse ${a} cx="${x+88}" cy="${y+48}" rx="62" ry="27"/><path ${a} d="M${x+26} ${y+48}v92c0 15 28 27 62 27s62-12 62-27V${y+48}M${x+26} ${y+94}c0 15 28 27 62 27s62-12 62-27"/>`;
  return `<circle ${a} cx="${x+88}" cy="${y+94}" r="70"/><path ${a} d="M${x+68} ${y+70}c6-22 46-25 51 2 5 26-31 27-31 55M${x+88} ${y+148}v2"/>`;
 }
 
 function menuSvg() {
  const cells = menuItems.map((item, i) => {
-  const col = i % 3;
-  const row = Math.floor(i / 3);
-  const x = columns[col] + 42;
+  const col = i % 4;
+  const row = Math.floor(i / 4);
+  const x = columns[col] + 28;
   const y = row * rowH + 46;
-  const w = columns[col + 1] - columns[col] - 84;
+  const w = columns[col + 1] - columns[col] - 56;
   const h = rowH - 92;
   return `<g>
    <rect x="${x}" y="${y}" width="${w}" height="${h}" rx="54" fill="#FFFFFF" fill-opacity="0.88"/>
    <rect x="${x+18}" y="${y+18}" width="${w-36}" height="${h-36}" rx="42" fill="none" stroke="${item.tone}" stroke-opacity="0.20" stroke-width="5"/>
-   <circle cx="${x+w/2}" cy="${y+212}" r="126" fill="${item.tone}" fill-opacity="0.12"/>
+   <circle cx="${x+w/2}" cy="${y+212}" r="118" fill="${item.tone}" fill-opacity="0.12"/>
    ${iconSvg(item.icon, x + w / 2 - 88, y + 118, item.tone)}
-   <text x="${x+w/2}" y="${y+415}" text-anchor="middle" font-family="Noto Sans Thai, Noto Sans, sans-serif" font-size="82" font-weight="700" fill="#163D37">${esc(item.title)}</text>
-   <text x="${x+w/2}" y="${y+505}" text-anchor="middle" font-family="Noto Sans Thai, Noto Sans, sans-serif" font-size="42" font-weight="500" fill="#55736D">${esc(item.subtitle)}</text>
-   <path d="M${x+220} ${y+h-118}h${w-440}" stroke="${item.tone}" stroke-opacity="0.32" stroke-width="6" stroke-linecap="round"/>
+   <text x="${x+w/2}" y="${y+410}" text-anchor="middle" font-family="Noto Sans Thai, Noto Sans, sans-serif" font-size="61" font-weight="700" fill="#163D37">${esc(item.title)}</text>
+   <text x="${x+w/2}" y="${y+492}" text-anchor="middle" font-family="Noto Sans Thai, Noto Sans, sans-serif" font-size="31" font-weight="500" fill="#55736D">${esc(item.subtitle)}</text>
+   <path d="M${x+150} ${y+h-118}h${w-300}" stroke="${item.tone}" stroke-opacity="0.32" stroke-width="6" stroke-linecap="round"/>
   </g>`;
  }).join('\n');
  return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
@@ -70,8 +75,8 @@ function menuSvg() {
 
 function richMenuObject() {
  const areas = menuItems.map((item, i) => {
-  const col = i % 3;
-  const row = Math.floor(i / 3);
+  const col = i % 4;
+  const row = Math.floor(i / 4);
   return {
    bounds: { x: columns[col], y: row * rowH, width: columns[col + 1] - columns[col], height: rowH },
    action: { type: 'message', text: item.command },
@@ -94,10 +99,6 @@ export async function build() {
   composites.push({ input: background, left: 0, top: 0 });
  }
  composites.push({ input: Buffer.from(menuSvg()), left: 0, top: 0 });
- if (existsSync(path.join(outDir, 'jod-jai-line-logo.png'))) {
-  const logo = await sharp(path.join(outDir, 'jod-jai-line-logo.png')).resize(154, 154).png().toBuffer();
-  composites.push({ input: logo, left: 1173, top: 766 });
- }
  await sharp({ create: { width: W, height: H, channels: 3, background: '#F7FBF6' } })
   .composite(composites)
   .jpeg({ quality: 86, mozjpeg: true })

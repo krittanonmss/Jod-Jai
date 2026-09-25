@@ -132,4 +132,14 @@ export function exportCard(url:string,count:number):Message {
   {type:'text',text:'ลิงก์หมดอายุภายใน 10 นาที และเปิดได้เฉพาะผู้ที่มีลิงก์',wrap:true,size:'xs',color:'#777777'},
  ]},footer:{type:'box',layout:'vertical',contents:[{type:'button',style:'primary',action:{type:'uri',label:'ดาวน์โหลด CSV',uri:url}}]}}};
 }
+export function managementMenu():Message {
+ return {type:'text',text:'ต้องการจัดการรายการแบบไหนครับ?',quickReply:{items:[
+  quickMessage('รายการค้าง'),quickMessage('รายการล่าสุด'),quickMessage('แก้รายการล่าสุด'),quickMessage('ลบรายการล่าสุด'),
+ ]}};
+}
+export function personalDataMenu():Message {
+ return {type:'text',text:'เลือกจัดการข้อมูลหรือดูวิธีใช้ได้เลยครับ',quickReply:{items:[
+  quickMessage('ส่งออกข้อมูล'),quickMessage('ล้างประวัติ'),quickMessage('ช่วยเหลือ'),
+ ]}};
+}
 export const help = 'ส่งสลิปหรือกด “เพิ่มรายการ” เพื่อเริ่มจดรายจ่าย\nระบบจะให้ตรวจและยืนยันก่อนบันทึกเสมอ\n\nดูข้อมูล: ดูรายรับรายจ่าย / สรุปวันนี้ / สรุปเดือนนี้\nจัดการ: รายการค้าง / แก้รายการล่าสุด / ลบรายการล่าสุด\nข้อมูลส่วนตัว: ส่งออกข้อมูล / ล้างประวัติ';

@@ -4,7 +4,7 @@ import {Draft,normalizeSlip,missingField,parseAnswer,money} from './domain';
 import {getImage,LineEvent,Message} from './line';
 import {recognizeSlip} from './ocr';
 import {slipQrHash} from './qr';
-import {text,review,editMenu,help,summaryCard,overviewCard,latestMenu,deleteRecordConfirm,clearHistoryConfirm,exportCard} from './messages';
+import {text,review,editMenu,help,summaryCard,overviewCard,latestMenu,deleteRecordConfirm,clearHistoryConfirm,exportCard,managementMenu,personalDataMenu} from './messages';
 
 type Change={code:string;draft?:Draft};
 function changeResponse(result:Change):Message[]{
@@ -151,6 +151,8 @@ export async function processEvent(event:LineEvent):Promise<Message[]>{
   if(['ดูรายรับรายจ่าย','ดูรายการ','รายรับรายจ่าย'].includes(input))return overview(user);
   if(input==='สรุปวันนี้')return totals(user,false);
   if(input==='สรุปเดือนนี้')return totals(user,true);
+  if(input==='จัดการรายการ')return [managementMenu()];
+  if(input==='ข้อมูลของฉัน')return [personalDataMenu()];
   if(['รายการล่าสุด','แก้รายการล่าสุด','ลบรายการล่าสุด'].includes(input)){
    const latest=await latestConfirmed(user);if(!latest)return [text('ยังไม่มีรายการที่บันทึกแล้วครับ')];
    if(input==='ลบรายการล่าสุด')return [deleteRecordConfirm(latest)];
