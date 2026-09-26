@@ -55,8 +55,8 @@ This is the release traceability matrix for the expense-first release. The detai
 | DATA-02 | 6 | Export access | Token expiration/revoke/clear behavior is intentional | SQL token validity/clear invalidation; atomic revoke invalidates export; invalid-token smoke | PASS |
 | DATA-03 | 6 | Cross-user isolation | Queries, RPCs, export, replay, and suggestions isolated | Owner-scoped export RPC, cross-user mutation/summary/clear checks, authorization recheck and stale-event fencing | PASS |
 | DATA-04 | 6 | Free-tier capacity | Measured usage fits dated provider limits and backpressure exists | DB 14.4 MB/500 MB; Vercel Hobby; LINE 136/300; OCR p95 2.244s; rate/retry/owner status controls documented | PASS |
-| REL-01 | 7 | Integrated release | All applicable required cases pass | Not started | PENDING |
-| REL-02 | 7 | Production acceptance | Deployment, real LINE journeys, rollback evidence | Prior smoke only | PENDING |
+| REL-01 | 7 | Integrated release | All applicable required cases pass | Automated suite, DB transaction, OCR→CSV flow, LINE validation, repair preview, performance and capacity evidence in `phase7-release.md` | PASS (automated scope) |
+| REL-02 | 7 | Production acceptance | Deployment, real LINE journeys, rollback evidence | Exact-commit READY deployment and smoke pass; 35 real delivered events/2 confirmations observed, but full phone journeys and bounded pilot remain unrecorded | IN PROGRESS |
 
 ## Baseline test commands
 
@@ -68,6 +68,7 @@ This is the release traceability matrix for the expense-first release. The detai
 | `node --import tsx scripts/test-flow.ts` | Writes temporary DB rows, reads private fixture, calls export endpoint, then cleans up | PASS after updating stale-copy assertion; no LINE messages sent |
 | `node --import tsx scripts/validate-line.ts` | Remote LINE schema validation, no chat send | PASS: 14 variants covering overview, review, edit, pending, delete, export, menus, long text, and empty states |
 | `npm run build` | Local production build | PASS |
+| `npm run benchmark:text` | 30 warm help-command processing samples; reads DB, sends no LINE message | PASS: median 67.2 ms, p95 130.6 ms |
 
 ## Completion rule
 

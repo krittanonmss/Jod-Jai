@@ -14,6 +14,7 @@
     "test:db": "node scripts/manage.mjs dbtest",
     "repair:responses": "node --import tsx scripts/repair-responses.ts",
     "benchmark:ocr": "node --import tsx scripts/benchmark-ocr.ts",
+    "benchmark:text": "node --import tsx scripts/benchmark-text.ts",
     "richmenu:build": "node scripts/rich-menu.mjs build",
     "richmenu:apply": "node scripts/rich-menu.mjs apply"
   },
