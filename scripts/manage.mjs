@@ -144,6 +144,28 @@ async function maintenance(){
  if(!response.ok)throw new Error('Maintenance HTTP '+response.status);
  console.log('Retention maintenance completed successfully.');
 }
+async function maintenancePreview(){
+ const info=JSON.parse(await readFile('.deploy/vercel.json','utf8'));
+ const deployment=await api(`https://api.vercel.com/v13/deployments/${info.id}?teamId=${info.teamId}`,env.VERCEL_TOKEN);
+ if(deployment.readyState!=='READY')throw new Error('Deployment not ready');
+ const alias=deployment.alias?.find(a=>a==='jod-jai.vercel.app')||deployment.alias?.[0]||deployment.url;
+ const response=await fetch(`https://${alias}/api/jobs/run?dry_run=1`,{headers:{Authorization:`Bearer ${env.CRON_SECRET}`}});
+ if(!response.ok)throw new Error('Maintenance preview HTTP '+response.status);
+ console.log(JSON.stringify(await response.json()));
+}
+async function capacity(){
+ const [database,owner,quota,usage]=await Promise.all([
+  sql(`select pg_database_size(current_database()) as database_bytes,
+    (select count(*) from public.jod_drafts) as drafts,
+    (select count(*) from public.jod_events) as events,
+    (select count(*) from public.jod_mutations) as mutations,
+    (select count(*) from public.jod_members where status='active') as active_members`),
+  team(),
+  api('https://api.line.me/v2/bot/message/quota',env.LINE_CHANNEL_ACCESS_TOKEN),
+  api('https://api.line.me/v2/bot/message/quota/consumption',env.LINE_CHANNEL_ACCESS_TOKEN),
+ ]);
+ console.log(JSON.stringify({captured_at:new Date().toISOString(),database:database[0],vercel_plan:owner.billing?.plan||owner.plan||'unknown',line:{quota,usage}},null,2));
+}
 async function check(){
  const p=await api(`https://api.supabase.com/v1/projects/${project}`,env.SUPABASE_ACCESS_TOKEN);console.log('Supabase: '+p.name+' / '+p.status);
  const t=await team();console.log('Vercel team: '+t.slug);
@@ -152,6 +174,6 @@ async function check(){
 if(process.argv[1]===fileURLToPath(import.meta.url)){
  try{
   const action=process.argv[2];
-  await ({check,bootstrap,migrate,deploy,status,cron,dbtest,linecheck,linehook,smoke,maintenance}[action]||(()=>{throw new Error('Unknown command');}))();
+  await ({check,bootstrap,migrate,deploy,status,cron,dbtest,linecheck,linehook,smoke,maintenance,'maintenance:preview':maintenancePreview,capacity}[action]||(()=>{throw new Error('Unknown command');}))();
  }catch(e){console.error(e.message);process.exitCode=1;}
 }

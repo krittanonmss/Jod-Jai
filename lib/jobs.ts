@@ -58,7 +58,16 @@ export async function drainJobs(budgetMs=190000){
    if(!messages){
     messages=await processEvent(job.payload as LineEvent);
     const saved=await db().from('jod_events').update({response:messages,result_saved_at:new Date().toISOString(),renderer_version:'v1'}).eq('id',job.id).eq('lease_token',job.lease_token).select('id');assertDb(saved.error);
-    if(!saved.data?.length)continue;
+    if(!saved.data?.length){
+     const messageId=job.payload?.message?.id||null;
+     const discarded=await db().rpc('jod_discard_stale_event_artifacts',{p_user:job.user_id,p_event:job.payload.webhookEventId,p_message:messageId});assertDb(discarded.error);
+     continue;
+    }
+   }
+   // Revocation can happen while OCR is running. Recheck immediately before any
+   // outbound delivery; the atomic revoke RPC also fences the event lease.
+   if(!await isAuthorizedUser(job.user_id)){
+    const stopped=await db().from('jod_events').update({status:'done',payload:{},lease_until:null,last_error:'authorization_revoked'}).eq('id',job.id).eq('lease_token',job.lease_token);assertDb(stopped.error);continue;
    }
    // A persisted response and stable LINE retry key prevent duplicate notifications after crashes.
    if(messages.length){
@@ -76,8 +85,8 @@ export async function drainJobs(budgetMs=190000){
  }
  return processed;
 }
-export async function cleanupOldData(){
+export async function cleanupOldData(dryRun=false){
  const months=Number.parseInt(process.env.RETENTION_MONTHS||'6',10);
  if(!Number.isInteger(months)||months<1||months>120)throw new Error('Invalid RETENTION_MONTHS');
- const {error}=await db().rpc('jod_cleanup_old_data',{p_months:months});assertDb(error);
+ const {data,error}=await db().rpc('jod_cleanup_old_data_v2',{p_ledger_months:months,p_dry_run:dryRun});assertDb(error);return data;
 }

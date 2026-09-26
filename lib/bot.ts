@@ -52,19 +52,25 @@ function applyMerchantSuggestion(values:ReturnType<typeof normalizeSlip>,previou
 }
 async function systemStatus(user:string):Promise<Message[]> {
  if(!await isOwnerUser(user))return [text('คำสั่งนี้ใช้ได้เฉพาะเจ้าของระบบครับ')];
- const [pendingJobs,deadJobs,recentDead,pendingDrafts,members,maintenance,quota]=await Promise.all([
+ const [pendingJobs,oldestJob,deadJobs,recentDead,pendingDrafts,members,maintenance,cleanupPreview,quota]=await Promise.all([
   db().from('jod_events').select('id',{count:'exact',head:true}).in('status',['pending','processing']),
+  db().from('jod_events').select('created_at').in('status',['pending','processing']).order('created_at').limit(1).maybeSingle(),
   db().from('jod_events').select('id',{count:'exact',head:true}).eq('status','dead'),
   db().from('jod_events').select('last_error').eq('status','dead').order('created_at',{ascending:false}).limit(1).maybeSingle(),
   db().from('jod_drafts').select('id',{count:'exact',head:true}).eq('status','draft'),
   db().from('jod_members').select('user_id',{count:'exact',head:true}).eq('status','active'),
   db().from('jod_maintenance').select('last_cleanup_at').eq('singleton',true).maybeSingle(),
+  db().rpc('jod_cleanup_old_data_v2',{p_ledger_months:Number.parseInt(process.env.RETENTION_MONTHS||'6',10),p_dry_run:true}),
   getMessageQuota().catch(()=>null),
  ]);
- for(const result of [pendingJobs,deadJobs,recentDead,pendingDrafts,members,maintenance])assertDb(result.error);
+ for(const result of [pendingJobs,oldestJob,deadJobs,recentDead,pendingDrafts,members,maintenance,cleanupPreview])assertDb(result.error);
  const cleaned=maintenance.data?.last_cleanup_at?new Intl.DateTimeFormat('th-TH',{timeZone:'Asia/Bangkok',dateStyle:'short',timeStyle:'short'}).format(new Date(maintenance.data.last_cleanup_at)):'ยังไม่เคย';
+ const oldestMinutes=oldestJob.data?.created_at?Math.max(0,Math.floor((Date.now()-new Date(oldestJob.data.created_at).getTime())/60000)):0;
+ const health=(deadJobs.count||0)>0?'ต้องตรวจงานล้มเหลว':oldestMinutes>=10?'คิวช้ากว่าปกติ':(pendingJobs.count||0)>0?'กำลังประมวลผล':'ปกติ';
+ const cleanup=cleanupPreview.data as Record<string,number>;
+ const cleanupCount=['ledger','soft_deleted','events','mutations','exports','invites','rate_counters'].reduce((sum,key)=>sum+Number(cleanup?.[key]||0),0);
  const lastError=recentDead.data?.last_error?`\nข้อผิดพลาดล่าสุด: ${String(recentDead.data.last_error).slice(0,80)}`:'';
- return [text(`สถานะระบบ ✅\nคิวงาน: ${pendingJobs.count||0} ค้าง • ${deadJobs.count||0} ล้มเหลว\nรายการรอยืนยัน: ${pendingDrafts.count||0}\nสมาชิกที่เชิญ: ${members.count||0}\nล้างข้อมูลล่าสุด: ${cleaned}\nLINE เดือนนี้: ${quota?`${quota.usage} / ${quota.limit}`:'ตรวจไม่ได้'}${lastError}`)];
+ return [text(`สถานะระบบ: ${health}\nคิวงาน: ${pendingJobs.count||0} ค้าง • เก่าสุด ${oldestMinutes} นาที • ${deadJobs.count||0} ล้มเหลว\nรายการรอยืนยัน: ${pendingDrafts.count||0}\nสมาชิกที่เชิญ: ${members.count||0}\nล้างข้อมูลล่าสุด: ${cleaned}\nรอล้างตามนโยบาย: ${cleanupCount}\nLINE เดือนนี้: ${quota?`${quota.usage} / ${quota.limit}`:'ตรวจไม่ได้'}${lastError}`)];
 }
 const inviteAlphabet='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 async function createInvite(user:string):Promise<Message[]> {
@@ -79,19 +85,23 @@ async function memberCommand(user:string,input:string):Promise<Message[]> {
   if(!await isOwnerUser(user))return [text('คำสั่งนี้ใช้ได้เฉพาะเจ้าของระบบครับ')];
   const members=await db().from('jod_members').select('user_id,created_at').eq('status','active').order('created_at');assertDb(members.error);
   const rows=members.data||[];const revoke=input.match(/^ถอนสิทธิ์\s+(\d{1,2})$/);
-  if(revoke){const index=Number(revoke[1])-1;if(!rows[index])return [text('ไม่พบหมายเลขผู้ใช้นี้ครับ')];const removed=await db().from('jod_members').update({status:'revoked',revoked_at:new Date().toISOString()}).eq('user_id',rows[index].user_id).eq('status','active');assertDb(removed.error);return [text(`ถอนสิทธิ์ผู้ใช้ ${index+1} แล้วครับ`)];}
+  if(revoke){
+   const index=Number(revoke[1])-1;if(!rows[index])return [text('ไม่พบหมายเลขผู้ใช้นี้ครับ')];
+   const removed=await db().rpc('jod_revoke_member',{p_owner:user,p_user:rows[index].user_id});assertDb(removed.error);
+   const result=removed.data as {members?:number;events?:number;exports?:number};
+   return [text(`ถอนสิทธิ์ผู้ใช้ ${index+1} แล้วครับ\nหยุดคิว ${result.events||0} งาน และยกเลิกลิงก์ส่งออก ${result.exports||0} ลิงก์`)];
+  }
   if(!rows.length)return [text('ยังไม่มีสมาชิกที่เชิญเข้ามาครับ'), {type:'text',text:'เชิญเพื่อนได้เลย',quickReply:{items:[{type:'action',action:{type:'message',label:'เชิญเพื่อน',text:'เชิญเพื่อน'}}]}}];
   return [text(`สมาชิก ${rows.length} คน\n${rows.map((row,index)=>`${index+1}. …${row.user_id.slice(-6)}`).join('\n')}\n\nถอนสิทธิ์ด้วย “ถอนสิทธิ์ 1”`)];
 }
 async function exportData(user:string):Promise<Message[]> {
- const countResult=await db().from('jod_drafts').select('id',{count:'exact',head:true}).eq('user_id',user).eq('status','confirmed');
- assertDb(countResult.error);
  const token=randomBytes(24).toString('hex');
  const tokenHash=createHash('sha256').update(token).digest('hex');
  const expiresAt=new Date(Date.now()+10*60_000).toISOString();
- const saved=await db().from('jod_exports').insert({token_hash:tokenHash,user_id:user,expires_at:expiresAt});assertDb(saved.error);
+ const saved=await db().rpc('jod_create_export',{p_hash:tokenHash,p_user:user,p_expires_at:expiresAt});assertDb(saved.error);
+ const snapshot=saved.data as {count?:number};
  const base=(process.env.APP_URL||'https://jod-jai.vercel.app').replace(/\/$/,'');
- return [exportCard(`${base}/api/export?token=${token}`,countResult.count||0)];
+ return [exportCard(`${base}/api/export?token=${token}`,Number(snapshot.count||0))];
 }
 function pendingMessage(rows:Draft[],page=1):Message[]{
   if(!rows.length)return [text('ไม่มีรายการรอการยืนยันครับ ส่งสลิปใหม่ได้เลย'), {type:'text',text:'เริ่มต้นได้เลย',quickReply:{items:[{type:'action',action:{type:'message',label:'เพิ่มรายการ',text:'เพิ่มรายการ'}},{type:'action',action:{type:'message',label:'ส่งสลิป',text:'ส่งสลิป'}}]}}];

@@ -18,9 +18,9 @@ This is the release traceability matrix for the expense-first release. The detai
 | --- | --- | --- | --- | --- | --- |
 | SCOPE-01 | 0 | Expense-only release | No income/balance claim in supported flows | Approved decision D01 | PASS |
 | SCOPE-02 | 0 | Invited-user product | Access remains owner/member based | Approved decision D02 | PASS |
-| SCOPE-03 | 0 | Zero-cost constraint | No paid dependency selected; capacity measured before release | D03/D04 approved; capacity audit pending | PENDING |
-| SCOPE-04 | 0 | Required fields | Amount, Bangkok timestamp, recipient only; no required description | D03 approved; app/SQL still require description | BASELINE FAILURE |
-| SCOPE-05 | 0 | Deletion policy | Explicit delete confirmation; no user restore flow after implementation | D05 approved; current recovery remains | BASELINE GAP |
+| SCOPE-03 | 0 | Zero-cost constraint | No paid dependency selected; capacity measured before release | 2026-09-26 account measurements and provider limits in `phase6-operations.md` | PASS |
+| SCOPE-04 | 0 | Required fields | Amount, Bangkok timestamp, recipient only; no required description | Domain and SQL regressions accept an absent description | PASS |
+| SCOPE-05 | 0 | Deletion policy | Explicit delete confirmation; no user restore flow after implementation | Confirmations active; recovery command disabled; bounded 7-day operational purge | PASS |
 | EVT-01 | 1 | Duplicate webhook | Exactly one business effect | `jod_accept_event` regression: duplicate receipt is not reinserted and does not consume another rate allowance | PASS (DB) |
 | EVT-02 | 1 | Image then immediate answer | Answer binds to the correct newly-created draft | All authorized events enter the same FIFO per-user queue; SQL queue regression proves the ordering policy | PASS (design + DB) |
 | EVT-03 | 1 | Queue acceptance failure | No durable-success acknowledgement before acceptance | Image acknowledgement is claimed only after atomic durable receipt; SQL regression verifies pending acknowledgement state | PASS (DB) |
@@ -51,10 +51,10 @@ This is the release traceability matrix for the expense-first release. The detai
 | REP-04 | 4 | Report payloads | Empty/long states validate in LINE | 14 message variants including overview and summary validate through LINE. | PASS |
 | UX-01 | 5 | Main journeys | Slip, manual, overview finish without guessing commands | Five-entry menu routes to slip, manual entry, expense overview, pending items, and grouped extras; combined missing-field input uses commas. LINE payload validation and generated-menu visual check pass. | PASS |
 | UX-02 | 5 | Truthful copy | No income, restore, bank-verification, or unlimited-free promise | Customer copy is expense-only; delete/clear cards explicitly say data cannot be restored; OCR limitation remains documented. | PASS |
-| DATA-01 | 6 | CSV completeness | All selected rows beyond DB API page limit | One-query export; no large test | PENDING |
-| DATA-02 | 6 | Export access | Token expiration/revoke/clear behavior is intentional | Invalid token smoke only | PARTIAL |
-| DATA-03 | 6 | Cross-user isolation | Queries, RPCs, export, replay, and suggestions isolated | Existing DB cross-user mutation/summary checks | PARTIAL |
-| DATA-04 | 6 | Free-tier capacity | Measured usage fits dated provider limits and backpressure exists | Provider limits recorded; account usage/thresholds pending | PENDING |
+| DATA-01 | 6 | CSV completeness | All selected rows beyond DB API page limit | Stable snapshot RPC pages at 1,000 rows with cursor; snapshot count/total SQL reconciliation and private CSV E2E pass | PASS |
+| DATA-02 | 6 | Export access | Token expiration/revoke/clear behavior is intentional | SQL token validity/clear invalidation; atomic revoke invalidates export; invalid-token smoke | PASS |
+| DATA-03 | 6 | Cross-user isolation | Queries, RPCs, export, replay, and suggestions isolated | Owner-scoped export RPC, cross-user mutation/summary/clear checks, authorization recheck and stale-event fencing | PASS |
+| DATA-04 | 6 | Free-tier capacity | Measured usage fits dated provider limits and backpressure exists | DB 14.4 MB/500 MB; Vercel Hobby; LINE 136/300; OCR p95 2.244s; rate/retry/owner status controls documented | PASS |
 | REL-01 | 7 | Integrated release | All applicable required cases pass | Not started | PENDING |
 | REL-02 | 7 | Production acceptance | Deployment, real LINE journeys, rollback evidence | Prior smoke only | PENDING |
 

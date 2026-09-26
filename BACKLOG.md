@@ -11,6 +11,7 @@
 - ผ่าน `typecheck`, unit/OCR tests, production build, database integration, E2E CSV export และ production smoke test
 - Retention production ถูกเรียกทดสอบสำเร็จแล้ว
 - Production smoke test ผ่านหลัง release P2/P3
+- Phase 6 ขึ้น production แล้ว: export แบบ snapshot แบ่งหน้า, revoke/clear fencing, cleanup dry-run, retention แยกประเภท และ runbook ผ่าน smoke test วันที่ 2026-09-26
 
 ## งานที่เสร็จแล้ว
 

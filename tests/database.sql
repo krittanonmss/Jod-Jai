@@ -1,6 +1,6 @@
 begin;
 do $$
-declare d uuid; confirmed_d uuid; other_d uuid; r jsonb; total bigint; claim public.jod_events; accepted jsonb; old_lease uuid; affected integer; report_total bigint; report_count bigint;
+declare d uuid; confirmed_d uuid; other_d uuid; r jsonb; total bigint; claim public.jod_events; accepted jsonb; old_lease uuid; affected integer; report_total bigint; report_count bigint; export_rows bigint;
 begin
  insert into public.jod_drafts(user_id,message_id,image_hash,provider,amount_satang,occurred_at,recipient,description,category,reference)
  values('__jod_test_owner__','__jod_test_message__','__jod_test_hash__','scb',200000,'2026-09-22T12:40:00Z','ผู้รับทดสอบ','ทดสอบ','อื่น ๆ','__jod_ref__') returning id into d;
@@ -59,6 +59,34 @@ begin
  perform public.jod_cleanup_old_data(120);
  if exists(select 1 from public.jod_drafts where message_id='__jod_old_message__') then raise exception 'Old data retained';end if;
  if not exists(select 1 from public.jod_drafts where message_id='__jod_recent_message__') then raise exception 'Recent data deleted';end if;
+ -- Phase 6 stable export: exact boundary, pagination cursor, isolation and token invalidation.
+ insert into public.jod_drafts(user_id,message_id,image_hash,provider,amount_satang,occurred_at,recipient,category,status,confirmed_at) values
+ ('__export_user__','__export_1__','__export_hash_1__','manual',101,'2026-09-01','ไทย','อื่น ๆ','confirmed',now()-interval '2 seconds'),
+ ('__export_user__','__export_2__','__export_hash_2__','manual',202,'2026-09-02','ไทย','อื่น ๆ','confirmed',now()-interval '1 second'),
+ ('__export_other__','__export_other_1__','__export_other_hash_1__','manual',999,'2026-09-03','private','อื่น ๆ','confirmed',now());
+ r:=public.jod_create_export(repeat('e',64),'__export_user__',now()+interval '10 minutes');
+ if (r->>'count')::bigint<>2 or (r->>'total_satang')::bigint<>303 then raise exception 'Export snapshot ledger mismatch';end if;
+ select count(*) into export_rows from public.jod_export_page(repeat('e',64),null,null,1);
+ if export_rows<>1 then raise exception 'Export page boundary failed';end if;
+ select count(*) into export_rows from public.jod_export_page(repeat('e',64),'2026-09-02'::timestamptz,(select id from jod_drafts where message_id='__export_2__'),1000);
+ if export_rows<>1 then raise exception 'Export cursor failed';end if;
+ if not public.jod_export_token_valid(repeat('e',64)) then raise exception 'Fresh export token rejected';end if;
+ update public.jod_drafts set description='changed after snapshot' where message_id='__export_1__';
+ if public.jod_export_token_valid(repeat('e',64)) then raise exception 'Ledger edit did not invalidate export snapshot';end if;
+ r:=public.jod_create_export(repeat('d',64),'__export_user__',now()+interval '10 minutes');
+ insert into public.jod_drafts(user_id,message_id,image_hash,provider,amount_satang,occurred_at,recipient,category,status,confirmed_at)
+ select '__export_bulk__','__export_bulk_'||n,'__export_bulk_hash_'||n,'manual',n,'2026-08-01'::timestamptz+n*interval '1 second','bulk','อื่น ๆ','confirmed',now()-interval '1 minute'
+ from generate_series(1,1001) n;
+ r:=public.jod_create_export(repeat('f',64),'__export_bulk__',now()+interval '10 minutes');
+ if (r->>'count')::bigint<>1001 or (r->>'total_satang')::bigint<>501501 then raise exception 'Large export snapshot mismatch';end if;
+ select count(*) into export_rows from public.jod_export_page(repeat('f',64),null,null,1000);
+ if export_rows<>1000 then raise exception 'Export 1,000-row boundary failed';end if;
+ select count(*) into export_rows from public.jod_export_page(repeat('f',64),'2026-08-01'::timestamptz+interval '2 seconds',(select id from jod_drafts where message_id='__export_bulk_2__'),1000);
+ if export_rows<>1 then raise exception 'Export second page failed';end if;
+ perform public.jod_clear_user_history('__export_user__','__export_keep__');
+ if public.jod_export_token_valid(repeat('d',64)) then raise exception 'Clear history did not invalidate export';end if;
+ r:=public.jod_cleanup_old_data_v2(120,true);
+ if not (r->>'dry_run')::boolean then raise exception 'Cleanup dry run missing';end if;
  if has_table_privilege('anon','public.jod_drafts','SELECT') or has_table_privilege('authenticated','public.jod_drafts','SELECT') then raise exception 'Public table grant';end if;
  if has_function_privilege('anon','public.jod_change_draft(text,text,uuid,integer,text,jsonb)','EXECUTE') then raise exception 'Public mutation RPC';end if;
  if exists(select 1 from pg_class where relname in ('jod_drafts','jod_events','jod_mutations','jod_exports','jod_members','jod_invites','jod_rate_limits','jod_maintenance') and not relrowsecurity) then raise exception 'RLS disabled';end if;

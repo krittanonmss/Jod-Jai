@@ -24,13 +24,11 @@ function confirmMessage(messages:Message[]):string{
 }
 try{
  const first=await processEvent(event({message:{id:'test-'+randomUUID(),type:'image'}}));
- assert.match(JSON.stringify(first),/รายการนี้เป็นค่าอะไร/);let d=await current();assert.equal(d.status,'draft');assert.equal(d.amount_satang,200000);
- const details=await processEvent(event({message:{id:randomUUID(),type:'text',text:`#${d.short_code} ซื้อของใช้`}}));
- const staleButton=confirmMessage(details);d=await current();assert.equal(d.status,'draft');
+ const staleButton=confirmMessage(first);let d=await current();assert.equal(d.status,'draft');assert.equal(d.amount_satang,200000);
  await processEvent(event({type:'postback',postback:{data:new URLSearchParams({action:'field',id:d.id,v:String(d.version),field:'description'}).toString()}}));
- const corrected=await processEvent(event({message:{id:randomUUID(),type:'text',text:`#${d.short_code} ค่าอาหาร`}}));
- const correctButton=confirmMessage(corrected);
- const stale=await processEvent(event({type:'postback',postback:{data:staleButton}}));assert.match(JSON.stringify(stale),/ปุ่มนี้เก่าแล้ว/);assert.equal((await current()).status,'draft');
+ await processEvent(event({message:{id:randomUUID(),type:'text',text:`#${d.short_code} ค่าอาหาร`}}));
+ d=await current();const correctButton=new URLSearchParams({action:'confirm',id:d.id,v:String(d.version)}).toString();
+ const stale=await processEvent(event({type:'postback',postback:{data:staleButton}}));assert.match(JSON.stringify(stale),/ใช้ไม่ได้แล้ว/);assert.equal((await current()).status,'draft');
  const confirmEvent=event({type:'postback',postback:{data:correctButton}});
  const saved=await processEvent(confirmEvent);assert.match(JSON.stringify(saved),/บันทึกแล้ว/);assert.equal((await current()).status,'confirmed');
  await processEvent(confirmEvent);assert.equal((await current()).status,'confirmed');

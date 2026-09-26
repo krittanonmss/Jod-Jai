@@ -334,7 +334,7 @@ Initial tracker:
   Phase 3: DONE (three-field lifecycle and pagination recorded 2026-09-26)
   Phase 4: DONE (deterministic report ledger and Bangkok-boundary evidence recorded 2026-09-26)
   Phase 5: DONE (five-entry menu, concise Thai copy, and combined correction flow deployed 2026-09-26)
-  Phase 6: NOT_STARTED
+  Phase 6: DONE (stable export, access/race fencing, measured capacity, retention/runbook, deployment, and production smoke complete 2026-09-26)
   Phase 7: NOT_STARTED
   Phase 8: BACKLOG
 
@@ -831,7 +831,7 @@ Entry: Expense/report contracts and D02–D06.
 Files: export route, access/owner commands, jobs/maintenance/RPCs, admin scripts/docs.
 Output: Complete export, isolated users, bounded free use, actionable runbook.
 
-[ ] P6.1 Export all selected confirmed records.
+[x] P6.1 Export all selected confirmed records.
     Implement pagination/streaming appropriate to actual size.
     Use stable ordering/boundaries and define concurrent insertion/deletion behavior.
     Avoid offset omissions when data changes; prefer a stable cursor/snapshot strategy.
@@ -839,20 +839,20 @@ Output: Complete export, isolated users, bounded free use, actionable runbook.
     Test 0, 1, 1,001+, and the actual configured page-limit boundary.
     Preserve UTF-8 Thai, CSV quoting/newlines, and spreadsheet formula protection.
 
-[ ] P6.2 Validate export access.
+[x] P6.2 Validate export access.
     Malformed/missing/expired token responses are intentional.
     Current links are bearer links: anyone possessing one can use it until invalid.
     Do not claim that opening the URL independently authenticates its owner.
     Invalidate/deny links as designed after clear-history/member revoke.
     No private rows in public cache or error output.
 
-[ ] P6.3 Test full access lifecycle.
+[x] P6.3 Test full access lifecycle.
     Owner pairing, valid/expired/used invite, revocation with queued work,
     guessed record IDs, cross-user replay keys, exports, merchant history.
     Check both application and SQL/RPC boundaries.
     Service credentials do not replace explicit ownership checks.
 
-[ ] P6.4 Enforce the measured free operating envelope.
+[x] P6.4 Enforce the measured free operating envelope.
     Update capacity with optimized OCR measurements.
     Include DB/index/storage, logs, compute/invocations, bandwidth, LINE usage.
     Use dated actual-account/provider evidence rather than remembered free limits.
@@ -861,7 +861,7 @@ Output: Complete export, isolated users, bounded free use, actionable runbook.
     Explain backpressure in Thai instead of dropping work silently.
     No paid plans/monitoring/backups or persistent keep-warm requests.
 
-[ ] P6.5 Implement explicit retention.
+[x] P6.5 Implement explicit retention.
     Inspect live RETENTION_MONTHS and schedules before changing them.
     Separate ledger, completed/dead jobs, mutation receipts, exports, invites,
     rate counters, and diagnostics.
@@ -871,19 +871,19 @@ Output: Complete export, isolated users, bounded free use, actionable runbook.
     Cleanup needs dry-run counts and exact criteria; flexible storage requirements
     are not permission to silently destroy existing ledger history.
 
-[ ] P6.6 Integrate deletion with active operations.
+[x] P6.6 Integrate deletion with active operations.
     Clear-history races with OCR, delivery, export, and mutation replay.
     Invalidate exports and fence older work from recreating data.
     Retire recovery access/legacy leftovers according to the scoped Phase 3 plan.
 
-[ ] P6.7 Provide owner status and runbook.
+[x] P6.7 Provide owner status and runbook.
     Pending/processing/dead count, oldest queue age, quota state, cleanup status.
     Distinguish busy from permanently broken.
     Explain handling of invalid response, timeout, credentials, DB trouble,
     depleted quota, and rollback using existing/free tools.
     Diagnostics must remain accessible outside LINE when LINE cannot send.
 
-[ ] P6.8 Protect releases without offering deleted-expense restore.
+[x] P6.8 Protect releases without offering deleted-expense restore.
     Scoped export/local free backup before risky changes if available.
     Verify a release backup in isolation if relying on it.
     No paid PITR/backup subscriptions or promises to restore deliberate deletions.

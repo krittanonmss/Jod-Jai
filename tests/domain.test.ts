@@ -6,6 +6,7 @@ import {parseSlipText,parseDateLine,cleanRecipient} from '../lib/slip-parser';
 import {validSignature,fallbackMessages,LineDeliveryError} from '../lib/line';
 import {review,summaryCard,overviewCard,clearHistoryConfirm,deleteRecordConfirm,exportCard,managementMenu,moreMenu,personalDataMenu} from '../lib/messages';
 import {allowedUser} from '../lib/config';
+import {csvCell,exportCsv} from '../lib/export';
 test('money uses integer satang, rejects negatives and ambiguous decimals',()=>{
  assert.equal(satang('2,000.05'),200005);assert.equal(satang('0.29'),29);
  assert.equal(satang('-33'),null);assert.equal(satang('96.001'),null);assert.equal(satang('abc'),null);
@@ -65,6 +66,12 @@ test('no configured LINE owner denies access',()=>{
  const original=process.env.LINE_ALLOWED_USER_IDS;process.env.LINE_ALLOWED_USER_IDS='';assert.equal(allowedUser('U1'),false);
  process.env.LINE_ALLOWED_USER_IDS='U1,U2';assert.ok(allowedUser('U1'));assert.equal(allowedUser('U3'),false);
  if(original===undefined)delete process.env.LINE_ALLOWED_USER_IDS;else process.env.LINE_ALLOWED_USER_IDS=original;
+});
+test('CSV export preserves Thai, quotes newlines, and neutralizes spreadsheet formulas',()=>{
+ assert.equal(csvCell('  =1+1'),`"'  =1+1"`);
+ assert.equal(csvCell('ร้าน "ใจดี"\nสาขา 2'),`"ร้าน ""ใจดี""\nสาขา 2"`);
+ const output=exportCsv([{id:'1',occurred_at:'2026-09-26T00:00:00Z',amount_satang:12345,category:'อาหาร',description:'+SUM(A1)',recipient:'ร้านไทย',provider:'manual',reference:null,created_at:'2026-09-26T00:00:00Z',confirmed_at:'2026-09-26T00:01:00Z'}]);
+ assert.ok(output.startsWith('\uFEFF'));assert.match(output,/123\.45/);assert.match(output,/"'\+SUM\(A1\)"/);assert.match(output,/ร้านไทย/);
 });
 const draft={id:'07e061ac-f717-4297-a838-ffab91e24e33',short_code:'ABCDE12345',version:4,amount_satang:9600,occurred_at:'2026-09-23T10:22:00Z',description:'ค่าอาหาร',category:'อาหาร',recipient:'ร้านค้า',edit_field:null} as Draft;
 test('three-field draft exposes confirmation while description remains optional',()=>{
